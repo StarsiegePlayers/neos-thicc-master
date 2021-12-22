@@ -11,7 +11,7 @@ type MaintenanceService struct {
 	Config   *Configuration
 
 	Service
-	Component
+	Logger
 }
 
 type Maintainable interface {

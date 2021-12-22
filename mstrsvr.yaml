@@ -9,10 +9,11 @@ log:
     components:
         - "startup"
         - "shutdown"
-        - "httpd"
-        - "maintenance"
         - "heartbeat"
-        - "newserver"
+        - "new-server"
+        - "maintenance"
+        - "daily-maintenance"
+        - "httpd"
         - "poll"
 
     # path to a log file for this server, leave empty to disable [default: empty]
@@ -92,6 +93,7 @@ httpd:
 
     # admin credentials list a-la .htaccess
     admins:
+        #username: password-hash
         #Neo: $6$uyfhaw3uf423w98r5pyhoiuewf$bottomtext
 
 
@@ -108,3 +110,6 @@ advanced:
 
         # maximum packet size up to max of 2000 bytes - default - (512B)
         maxPacketSize: 512
+
+        # deadline before determining a timed out connection
+        connectionTimeOut: 2s

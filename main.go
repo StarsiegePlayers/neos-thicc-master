@@ -22,7 +22,7 @@ var (
 
 func main() {
 	var err error
-	startup := Component{
+	startup := Logger{
 		Name:   "main",
 		LogTag: "startup",
 	}
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	// setup kill / rehash hooks
-	shutdown := Component{
+	shutdown := Logger{
 		Name:   "main",
 		LogTag: "shutdown",
 	}

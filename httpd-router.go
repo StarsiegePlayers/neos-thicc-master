@@ -10,7 +10,7 @@ type Router struct {
 	// routes["route"]["method"]
 	routes  map[string]map[string]http.HandlerFunc
 	apiPath string
-	Component
+	Logger
 }
 
 type RouteLogger struct {
@@ -28,7 +28,7 @@ func NewHttpRouter(apiPath string) (out *Router) {
 		mux:     http.NewServeMux(),
 		routes:  make(map[string]map[string]http.HandlerFunc),
 		apiPath: apiPath,
-		Component: Component{
+		Logger: Logger{
 			Name:   "HTTPD Router",
 			LogTag: "httpd-router",
 		},

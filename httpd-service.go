@@ -21,7 +21,7 @@ type HTTPDService struct {
 	listenPort uint16
 
 	Service
-	Component
+	Logger
 }
 
 var (
@@ -30,7 +30,7 @@ var (
 )
 
 func (s *HTTPDService) Init(args map[string]interface{}) (err error) {
-	s.Component = Component{
+	s.Logger = Logger{
 		Name:   "HTTP Server",
 		LogTag: "httpd",
 	}

@@ -12,7 +12,7 @@ type DailyMaintenanceService struct {
 	Config   *Configuration
 
 	Service
-	Component
+	Logger
 }
 
 type DailyMaintainable interface {
@@ -20,7 +20,7 @@ type DailyMaintainable interface {
 }
 
 func (t *DailyMaintenanceService) Init(args map[string]interface{}) (err error) {
-	t.Component = Component{
+	t.Logger = Logger{
 		Name:   "Daily Maintenance",
 		LogTag: "daily-maintenance",
 	}

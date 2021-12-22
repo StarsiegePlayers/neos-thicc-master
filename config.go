@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/viper"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/spf13/viper"
 )
 
 type Configuration struct {
@@ -51,9 +52,10 @@ type Configuration struct {
 
 	Advanced struct {
 		Network struct {
-			MaxPacketSize uint16
-			MaxBufferSize uint16
-			StunServers   []string
+			ConnectionTimeout time.Duration
+			MaxPacketSize     uint16
+			MaxBufferSize     uint16
+			StunServers       []string
 		}
 		Maintenance struct {
 			Interval time.Duration
@@ -70,7 +72,7 @@ const (
 )
 
 func configInit() (config *Configuration) {
-	component := Component{
+	logger := Logger{
 		Name:   "config",
 		LogTag: "config",
 	}
@@ -89,6 +91,7 @@ func configInit() (config *Configuration) {
 	v.SetDefault("Service.Listen.Port", 29000)
 
 	v.SetDefault("Service.ServerTTL", 5*time.Minute)
+
 	v.SetDefault("Service.Hostname", "")
 	v.SetDefault("Service.MOTD", "")
 	v.SetDefault("Service.ID", 01)
@@ -107,24 +110,25 @@ func configInit() (config *Configuration) {
 	v.SetDefault("HTTPD.Admins", map[string]string{})
 
 	v.SetDefault("Advanced.Maintenance.Interval", 60*time.Second)
+	v.SetDefault("Advanced.Network.ConnectionTimeout", 2*time.Second)
 	v.SetDefault("Advanced.Network.MaxPacketSize", 512)
 	v.SetDefault("Advanced.Network.MaxBufferSize", 32768)
 	v.SetDefault("Advanced.Network.StunServers", []string{"stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302"})
 
 	v.OnConfigChange(func(in fsnotify.Event) {
-		component.Log("configuration change detected, updating...")
-		config = rehashConfig(v, component)
+		logger.Log("configuration change detected, updating...")
+		config = rehashConfig(v, logger)
 	})
 	v.WatchConfig()
 
-	config = rehashConfig(v, component)
+	config = rehashConfig(v, logger)
 
 	loggerInit(config.Log.ConsoleColors)
 
 	return config
 }
 
-func rehashConfig(v *viper.Viper, component Component) (config *Configuration) {
+func rehashConfig(v *viper.Viper, component Logger) (config *Configuration) {
 	err := v.ReadInConfig()
 	if _, configFileNotFound := err.(viper.ConfigFileNotFoundError); err != nil && configFileNotFound {
 		component.LogAlert("file not found, creating...")

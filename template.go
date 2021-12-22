@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/golang-module/carbon/v2"
-	"github.com/sbani/go-humanizer/numbers"
 	"strings"
 	"text/template"
+
+	"github.com/golang-module/carbon/v2"
+	"github.com/sbani/go-humanizer/numbers"
 )
 
 var templateString = `Welcome to a Testing server for Neo's Dummythiccness {{.NL}}

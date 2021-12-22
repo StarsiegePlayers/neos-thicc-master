@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 
 	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/protocol"
@@ -27,7 +28,7 @@ type MasterService struct {
 	DailyStats DailyStats
 
 	Service
-	Component
+	Logger
 	Maintainable
 	DailyMaintainable
 }
@@ -43,15 +44,8 @@ type ServerInfo struct {
 	SolicitedTime time.Time
 }
 
-func NewMaster(config *Configuration) (thisMaster *MasterService, err error) {
-	thisMaster = &MasterService{
-		Config: config,
-	}
-	return
-}
-
 func (s *MasterService) Init(args map[string]interface{}) (err error) {
-	s.Component = Component{
+	s.Logger = Logger{
 		Name:   "Master Service",
 		LogTag: "master",
 	}
@@ -121,18 +115,12 @@ func (s *MasterService) Maintenance() {
 	count := 0
 	for k, v := range s.ServerList {
 		if v.IsExpired(s.Config.Service.ServerTTL) {
-			s.Lock()
-			s.Log("[maintenance] removing server %s, last seen: %s", v.String(), v.LastSeen.Format(time.Stamp))
-			delete(s.ServerList, k)
-			s.IPServiceCount[k]--
-			if s.IPServiceCount[k] <= 0 {
-				delete(s.IPServiceCount, k)
+			if s.CheckRemoveServer(k) {
+				count++
 			}
-			s.Unlock()
-			count++
 		}
 	}
-	s.Log("[maintenance] cleaned up %d stale servers\n", count)
+	s.Log("[maintenance] removed %d stale servers\n", count)
 }
 
 func (s *MasterService) DailyMaintenance() {
@@ -158,6 +146,44 @@ func (s *MasterService) Shutdown() {
 	err := s.pconn.Close()
 	if err != nil {
 		s.LogAlert("error while closing socket [%s]", err)
+	}
+	return
+}
+
+func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool) {
+	removed = false
+	svr := s.ServerList[ipPort]
+	err := svr.Query()
+	if err != nil {
+		s.Lock()
+		s.Log("[maintenance] removing server %s, last seen: %s", ipPort, svr.LastSeen.Format(time.Stamp))
+		delete(s.ServerList, ipPort)
+		s.IPServiceCount[ipPort]--
+		if s.IPServiceCount[ipPort] <= 0 {
+			delete(s.IPServiceCount, ipPort)
+		}
+		s.Unlock()
+		removed = true
+	}
+	return
+}
+
+func (s *MasterService) RegisterExternalServerList(ipPorts []string) (errs []error) {
+	for _, v := range ipPorts {
+		err := s.RegisterExternalServer(v)
+		errs = append(errs, err)
+	}
+	return
+}
+
+func (s *MasterService) RegisterExternalServer(ipPort string) (err error) {
+	if _, ok := s.ServerList[ipPort]; ok {
+		// only query new servers
+		addr, err := net.ResolveUDPAddr("udp", ipPort)
+		if err != nil {
+			return
+		}
+		s.registerHeartbeat(addr, ipPort)
 	}
 	return
 }
@@ -196,7 +222,7 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 	switch p.Type {
 	// server has sent in a heartbeat
 	case protocol.MasterServerHeartbeat:
-		s.registerHeartbeat(addr, ipPort, p)
+		s.registerHeartbeat(addr, ipPort)
 		break
 
 	// client is requesting a server list
@@ -216,12 +242,12 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 	}
 }
 
-func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string, p *protocol.Packet) {
+func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string) {
 	s.Lock()
 	s.ServerList[ipPort].SolicitedTime = time.Now()
 	s.Unlock()
 
-	q := darkstar.NewQuery(2*time.Second, true)
+	q := darkstar.NewQuery(s.Config.Advanced.Network.ConnectionTimeout, true)
 	q.Addresses = append(q.Addresses, ipPort)
 	response, err := q.Servers()
 	if len(err) > 0 || len(response) <= 0 {
@@ -229,11 +255,11 @@ func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string, p *p
 		return
 	}
 
-	s.registerPingInfo(addr, ipPort, p)
+	s.registerPingInfo(addr, ipPort)
 
 }
 
-func (s *MasterService) registerPingInfo(addr *net.UDPAddr, ipPort string, p *protocol.Packet) {
+func (s *MasterService) registerPingInfo(addr *net.UDPAddr, ipPort string) {
 	s.Lock()
 	if _, exist := s.Master.Servers[ipPort]; !exist {
 		count := s.IPServiceCount[addr.IP.String()]
