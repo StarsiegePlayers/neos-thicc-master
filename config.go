@@ -102,7 +102,7 @@ func configInit() (config *Configuration) {
 
 	v.SetDefault("Poll.Enabled", true)
 	v.SetDefault("Poll.Interval", 5*time.Minute)
-	v.SetDefault("Poll.KnownMasters", []string{"master1.starsiegeplayers.com", "master2.starsiegeplayers.com", "master3.starsiegeplayers.com"})
+	v.SetDefault("Poll.KnownMasters", []string{"master1.starsiegeplayers.com:29000", "master2.starsiegeplayers.com:29000", "master3.starsiegeplayers.com:29000"})
 
 	v.SetDefault("HTTPD.Enabled", true)
 	v.SetDefault("HTTPD.Listen.IP", "")

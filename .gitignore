@@ -1,4 +1,6 @@
+build/
 www-build/
+*.syso
 
 ### NotepadPP template
 # Notepad++ backups #

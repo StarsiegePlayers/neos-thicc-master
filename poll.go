@@ -1,10 +1,10 @@
 package main
 
 import (
+	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"sync"
 	"time"
 
-	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/server"
 )
@@ -41,6 +41,8 @@ func (p *PollService) Init(args map[string]interface{}) (err error) {
 		return ErrorInvalidArgument
 	}
 
+	p.Ticker = time.NewTicker(p.Config.Poll.Interval)
+
 	return
 }
 
@@ -51,18 +53,26 @@ func (p *PollService) Rehash() {
 
 func (p *PollService) Run() {
 	p.Log("will run every %s", p.Config.Poll.Interval.String())
+	p.Log("known masters are %s", p.Config.Poll.KnownMasters)
+	p.query()
 	for range p.C {
-		q := darkstar.NewQuery(p.Config.Advanced.Network.ConnectionTimeout, true)
-		q.Addresses = p.Config.Poll.KnownMasters
-
-		pm := new(PollMasterInfo)
-		pm.Masters, pm.Games, pm.Errors = q.Masters()
-		p.Log("found %d games on %d masters", len(pm.Masters), len(pm.Games))
-
-		p.Lock()
-		p.PollMasterInfo = pm
-		p.Unlock()
+		p.query()
 	}
+}
+
+func (p *PollService) query() {
+	q := darkstar.NewQuery(p.Config.Advanced.Network.ConnectionTimeout, true)
+	q.Addresses = p.Config.Poll.KnownMasters
+
+	pm := new(PollMasterInfo)
+	pm.Masters, pm.Games, pm.Errors = q.Masters()
+	p.Log("found %d games on %d masters", len(pm.Games), len(pm.Masters))
+
+	p.Lock()
+	p.PollMasterInfo = pm
+	p.Unlock()
+
+	(*p.Services)["master"].(*MasterService).RegisterExternalServerList(pm.Games)
 }
 
 func (p *PollService) Shutdown() {

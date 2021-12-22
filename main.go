@@ -13,6 +13,8 @@ import (
 
 var serviceRunning = true
 
+//go:generate go-winres make --arch "amd64,386,arm,arm64"
+
 var (
 	VERSION = "0.1.0"
 	DATE    = "2021/12/21"
@@ -30,12 +32,12 @@ func main() {
 	loggerInit(false)
 	config := configInit()
 
-	startup.Log(NCenter(80, strings.Repeat("-", 40)))
-	startup.Log(NCenter(80, "Neo's Dummy Thicc Master Server"))
-	startup.Log(NCenter(80, fmt.Sprintf("Version %s %s", VERSION, DEBUG)))
-	startup.Log(NCenter(80, "https://youtu.be/pY725Ya74VU"))
-	startup.Log(NCenter(80, fmt.Sprintf("Built on [%s@%s]", DATE, TIME)))
-	startup.Log(NCenter(80, strings.Repeat("-", 40)))
+	startup.Log(strings.Repeat("-", 50))
+	startup.Log(NCenter(50, "Neo's Dummy Thicc Master Server"))
+	startup.Log(NCenter(50, fmt.Sprintf("Version %s %s", VERSION, DEBUG)))
+	startup.Log(NCenter(50, "https://youtu.be/pY725Ya74VU"))
+	startup.Log(NCenter(50, fmt.Sprintf("Built on [%s@%s]", DATE, TIME)))
+	startup.Log(strings.Repeat("-", 50))
 	startup.Log("Hostname:  %s", config.Service.Hostname)
 	startup.Log("MOTD:      %s", config.Service.MOTD)
 	startup.Log("Server ID: %d", config.Service.ID)

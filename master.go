@@ -54,6 +54,7 @@ func (s *MasterService) Init(args map[string]interface{}) (err error) {
 	s.BannedMaster = protocol.NewMaster()
 	s.Options = &protocol.Options{}
 	s.ServerList = make(map[string]*ServerInfo)
+	s.IPServiceCount = make(map[string]uint16)
 	s.DailyStats = DailyStats{
 		UniqueUsers: make(map[string]bool),
 	}
@@ -113,14 +114,15 @@ func (s *MasterService) Run() {
 
 func (s *MasterService) Maintenance() {
 	count := 0
-	for k, v := range s.ServerList {
-		if v.IsExpired(s.Config.Service.ServerTTL) {
-			if s.CheckRemoveServer(k) {
-				count++
-			}
+	saved := 0
+	for k := range s.ServerList {
+		if s.CheckRemoveServer(k) {
+			count++
+		} else {
+			saved++
 		}
 	}
-	s.Log("[maintenance] removed %d stale servers\n", count)
+	s.Log("[maintenance] removed %d stale servers, saved %d servers\n", count, saved)
 }
 
 func (s *MasterService) DailyMaintenance() {
@@ -153,39 +155,45 @@ func (s *MasterService) Shutdown() {
 func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool) {
 	removed = false
 	svr := s.ServerList[ipPort]
-	err := svr.Query()
-	if err != nil {
-		s.Lock()
-		s.Log("[maintenance] removing server %s, last seen: %s", ipPort, svr.LastSeen.Format(time.Stamp))
-		delete(s.ServerList, ipPort)
-		s.IPServiceCount[ipPort]--
-		if s.IPServiceCount[ipPort] <= 0 {
-			delete(s.IPServiceCount, ipPort)
+	if svr.IsExpired(s.Config.Service.ServerTTL) {
+		err := svr.Query()
+		if err != nil {
+			s.Lock()
+			s.Log("[maintenance] removing server %s, last seen: %s", ipPort, svr.LastSeen.Format(time.Stamp))
+			delete(s.ServerList, ipPort)
+			delete(s.Master.Servers, ipPort)
+			s.IPServiceCount[ipPort]--
+			if s.IPServiceCount[ipPort] <= 0 {
+				delete(s.IPServiceCount, ipPort)
+			}
+			s.Unlock()
+			removed = true
 		}
-		s.Unlock()
-		removed = true
 	}
 	return
 }
 
-func (s *MasterService) RegisterExternalServerList(ipPorts []string) (errs []error) {
-	for _, v := range ipPorts {
-		err := s.RegisterExternalServer(v)
-		errs = append(errs, err)
+func (s *MasterService) RegisterExternalServerList(servers map[string]*server.Server) (errs []error) {
+	s.Log("registering %d servers from external list", len(servers))
+	for k, v := range servers {
+		// only add servers we don't already know about
+		if _, ok := s.ServerList[k]; !ok {
+			s.registerHeartbeat(v.Address, k)
+		}
 	}
 	return
 }
 
-func (s *MasterService) RegisterExternalServer(ipPort string) (err error) {
+func (s *MasterService) RegisterExternalServer(ipPort string) error {
 	if _, ok := s.ServerList[ipPort]; ok {
 		// only query new servers
 		addr, err := net.ResolveUDPAddr("udp", ipPort)
 		if err != nil {
-			return
+			return err
 		}
 		s.registerHeartbeat(addr, ipPort)
 	}
-	return
+	return nil
 }
 
 func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
@@ -244,16 +252,26 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 
 func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string) {
 	s.Lock()
+	if _, ok := s.ServerList[ipPort]; !ok {
+		s.ServerList[ipPort] = new(ServerInfo)
+		s.ServerList[ipPort].PingInfoQuery = query.NewPingInfoQueryWithOptions(ipPort, s.Options)
+		s.ServerList[ipPort].Server = new(server.Server)
+		s.ServerList[ipPort].Server.Address = addr
+	}
 	s.ServerList[ipPort].SolicitedTime = time.Now()
-	s.Unlock()
+	s.ServerList[ipPort].LastSeen = time.Now()
 
 	q := darkstar.NewQuery(s.Config.Advanced.Network.ConnectionTimeout, true)
 	q.Addresses = append(q.Addresses, ipPort)
 	response, err := q.Servers()
 	if len(err) > 0 || len(response) <= 0 {
 		s.ServerAlert(ipPort, "error during server verification [%s, %d]", err, len(response))
+		s.Unlock()
 		return
 	}
+
+	s.ServerList[ipPort].PingInfoQuery = response[0]
+	s.Unlock()
 
 	s.registerPingInfo(addr, ipPort)
 

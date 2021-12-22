@@ -19,14 +19,20 @@ func init() {
 
 func loggerInit(colorLogs bool) {
 	au = aurora.NewAurora(colorLogs)
-	componentColors["startup"] = aurora.BrightFg | aurora.MagentaFg
-	componentColors["shutdown"] = aurora.BrightFg | aurora.MagentaFg
-	componentColors["master"] = aurora.BrightFg | aurora.CyanFg
-	componentColors["config"] = aurora.BrightFg | aurora.YellowFg
+	componentColors["startup"] = aurora.MagentaFg
+	componentColors["shutdown"] = aurora.MagentaFg
 	componentColors["maintenance"] = aurora.BrightFg | aurora.GreenFg
 	componentColors["daily-maintenance"] = aurora.BrightFg | aurora.GreenFg
-	componentColors["httpd"] = aurora.BrightFg | aurora.BlueFg
-	componentColors["default"] = aurora.BrightFg | aurora.WhiteFg
+
+	componentColors["master"] = aurora.BlueFg
+	componentColors["config"] = aurora.BrightFg | aurora.YellowFg
+
+	componentColors["httpd"] = aurora.CyanFg
+	componentColors["httpd-router"] = aurora.CyanFg
+
+	componentColors["poll"] = aurora.YellowFg
+
+	componentColors["default"] = aurora.WhiteFg
 }
 
 type Logger struct {
