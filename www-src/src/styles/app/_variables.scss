@@ -1,0 +1,36 @@
+@import "../../../node_modules/bootstrap/scss/mixins";
+
+$starsiege-blue: #18303f;
+$starsiege-yellow: #423604;
+$starsiege-text-green: #0a7300;
+$starsiege-text-yellow: #d5ab00;
+
+$starsiege-nav-blue: transparentize($starsiege-blue, 0.5);
+$starsiege-nav-yellow: transparentize($starsiege-yellow, 0.5);
+
+$body-bg: black;
+$primary: $starsiege-nav-blue;
+$link-color: #ffffff;
+$border-color: #003977;
+
+$left-nav-width: 15rem;
+$nav-group-item-hover-bg: #646464;
+$nav-group-item-link-color: #ffff00;
+$nav-group-item-link-active: #ffffff;
+$nav-group-item-link-active-bg: #484848;
+$nav-group-item-color: #ffff00;
+
+$container-max-widths: (
+        sm: 540px,
+        md: 720px,
+        lg: 960px,
+        xl: 1140px
+);
+
+$grid-breakpoints: (
+        xs: 0,
+        sm: 576px,
+        md: 768px,
+        lg: 992px,
+        xl: 1200px
+);

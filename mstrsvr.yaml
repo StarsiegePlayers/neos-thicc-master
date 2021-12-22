@@ -1,0 +1,110 @@
+# Neo's Dummy Thicc Master configuration file
+
+###### logging options ###########
+log:
+    # should we display each server with a unique color based on ip address and port? [default: true]
+    consoleColors: true
+
+    # what components should we log [default: *]
+    components:
+        - "startup"
+        - "shutdown"
+        - "httpd"
+        - "maintenance"
+        - "heartbeat"
+        - "newserver"
+        - "poll"
+
+    # path to a log file for this server, leave empty to disable [default: empty]
+    file: 'mstrsvr.log'
+
+###### main master server options ###########
+service:
+
+    # should the service listen on a particular ip address and port?
+    listen:
+        # what IP should we be listening on [default: empty (all addresses)]
+        ip: ""
+
+        # what port? [default: 29000]
+        port: 29000
+
+    # what is the host (or canonical name) for this server max 31 chars [default: none]
+    hostname: 'Neo''s DummyThicc Master'
+
+    # message of the day to send to all connecting users (optional) max 255 characters [default: none]
+    motd: 'Welcome to Neo''s DummyThicc Master'
+
+    # server timezone
+    timezone: "EST"
+
+    # 16 bit value to identify this master server, should be unique across masters [default: 1]
+    id: 69
+
+    # number of servers that can originate from the same IP address
+    serversperIP: 15
+
+    # server timeout value [default: 5 minutes]
+    ttl: 5m
+
+    # banned client/server options
+    banned:
+        # banned ip networks receive a separate MOTD message with no servers attached [default: "You've been banned!"]
+        motd: 'Welcome to bansville, population: you\nVisit the discord to appeal!'
+
+        # What networks are considered banned? Specify using a CIDR format [default: 224.0.0.0/4 (multicast addresses)]
+        networks:
+            - 224.0.0.0/4
+
+###### master polling options ###########
+poll:
+
+    # shall we poll other masters for servers?
+    enabled: true
+
+    # how often to poll for servers [default: 5 minutes]
+    interval: 5m
+
+    # list of known master servers in a <dns or ip>:<port> format
+    knownmasters:
+        - master1.starsiegeplayers.com:29000
+        - master2.starsiegeplayers.com:29000
+        - master3.starsiegeplayers.com:29000
+        - starsiege1.no-ip.org:29000
+        - starsiege.noip.us:29000
+        - southerjustice.dyndns-server.com:29000
+        - dustersteve.ddns.net:29000
+        - starsiege.from-tx.com:29000
+
+###### httpd options ###########
+httpd:
+    # should the http server be enabled?
+    enabled: true
+
+    # where should the httpd listen?
+    # by default the httpd will listen on the same IPs and port as the UDP master server
+    listen:
+        # would you like it to listen on a specific IP? [default: empty (same addresses as main service)]
+        ip:
+
+        # would you like it to listen on a specific port? [default: empty (same port as main service)]
+        port:
+
+    # admin credentials list a-la .htaccess
+    admins:
+        #Neo: $6$uyfhaw3uf423w98r5pyhoiuewf$bottomtext
+
+
+###### advanced options bellow ###########
+advanced:
+
+    maintenance:
+        # interval for when we should clean up stale servers [default: 60 seconds]
+        maintenanceInterval: 60s
+
+    network:
+        # send/receive buffer size in bytes - default: 32768 (32KiB)
+        maxBufferSize: 32768
+
+        # maximum packet size up to max of 2000 bytes - default - (512B)
+        maxPacketSize: 512
