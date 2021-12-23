@@ -116,15 +116,18 @@ func (s *MasterService) Run() {
 
 func (s *MasterService) Maintenance() {
 	count := 0
-	saved := 0
+	checked := 0
+	fresh := 0
 	for k := range s.ServerList {
-		if s.CheckRemoveServer(k) {
+		if removed, queried := s.CheckRemoveServer(k); removed {
 			count++
-		} else {
-			saved++
+		} else if !removed && queried {
+			checked++
+		} else if !removed && !queried {
+			fresh++
 		}
 	}
-	s.Log("[maintenance] removed %d stale servers, saved %d servers\n", count, saved)
+	s.Log("[maintenance] removed %d stale servers, queried %d servers, %d servers still fresh\n", count, checked, fresh)
 }
 
 func (s *MasterService) DailyMaintenance() {
@@ -159,11 +162,13 @@ func (s *MasterService) Shutdown() {
 	return
 }
 
-func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool) {
+func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool, queried bool) {
 	removed = false
+	queried = false
 	svr := s.ServerList[ipPort]
 	if svr.IsExpired(s.Config.Service.ServerTTL) {
 		err := svr.Query()
+		queried = true
 		if err != nil {
 			s.Lock()
 			s.Log("[maintenance] removing server %s, last seen: %s", ipPort, svr.LastSeen.Format(time.Stamp))
