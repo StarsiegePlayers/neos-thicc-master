@@ -166,18 +166,19 @@ func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool, queried 
 	removed = false
 	queried = false
 	svr := s.ServerList[ipPort]
+	addr := svr.Server.Address.IP.String()
 	if svr.IsExpired(s.Config.Service.ServerTTL) {
 		err := svr.Query()
 		queried = true
 		if err != nil {
 			s.Lock()
-			s.Log("[maintenance] removing server %s, last seen: %s", ipPort, svr.LastSeen.Format(time.Stamp))
+			s.IPServiceCount[addr]--
+			if s.IPServiceCount[addr] <= 0 {
+				delete(s.IPServiceCount, addr)
+			}
+			s.Log("[maintenance] removing server %s, last seen: %s, new count for ip: %d", ipPort, svr.LastSeen.Format(time.Stamp), s.IPServiceCount[addr])
 			delete(s.ServerList, ipPort)
 			delete(s.Master.Servers, ipPort)
-			s.IPServiceCount[ipPort]--
-			if s.IPServiceCount[ipPort] <= 0 {
-				delete(s.IPServiceCount, ipPort)
-			}
 			s.Unlock()
 			removed = true
 			return
@@ -267,14 +268,6 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 
 func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string) {
 	s.Lock()
-	if _, ok := s.ServerList[ipPort]; !ok {
-		s.ServerList[ipPort] = new(ServerInfo)
-		s.ServerList[ipPort].PingInfoQuery = query.NewPingInfoQueryWithOptions(ipPort, s.Options)
-		s.ServerList[ipPort].Server = new(server.Server)
-		s.ServerList[ipPort].Server.Address = addr
-	}
-	s.ServerList[ipPort].SolicitedTime = time.Now()
-	s.ServerList[ipPort].LastSeen = time.Now()
 
 	q := darkstar.NewQuery(s.Options.Timeout, s.Options.Debug)
 	q.Addresses = append(q.Addresses, ipPort)
@@ -285,7 +278,17 @@ func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string) {
 		return
 	}
 
+	// only add a server to the list if it passes verification
+	if _, ok := s.ServerList[ipPort]; !ok {
+		s.ServerList[ipPort] = new(ServerInfo)
+		s.ServerList[ipPort].PingInfoQuery = query.NewPingInfoQueryWithOptions(ipPort, s.Options)
+		s.ServerList[ipPort].Server = new(server.Server)
+		s.ServerList[ipPort].Server.Address = addr
+	}
+	s.ServerList[ipPort].SolicitedTime = time.Now()
+	s.ServerList[ipPort].LastSeen = time.Now()
 	s.ServerList[ipPort].PingInfoQuery = response[0]
+
 	s.Unlock()
 
 	s.registerPingInfo(addr, ipPort)
