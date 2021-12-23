@@ -36,8 +36,6 @@ service:
     # message of the day to send to all connecting users (optional) max 255 characters [default: none]
     motd: 'Welcome to Neo''s DummyThicc Master'
 
-    # server timezone
-    timezone: "EST"
 
     # 16 bit value to identify this master server, should be unique across masters [default: 1]
     id: 69
