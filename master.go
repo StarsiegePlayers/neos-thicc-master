@@ -175,7 +175,10 @@ func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool) {
 			}
 			s.Unlock()
 			removed = true
+			return
 		}
+		svr.LastSeen = time.Now()
+		svr.SolicitedTime = time.Now()
 	}
 	return
 }
