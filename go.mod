@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/StarsiegePlayers/darkstar-query-go/v2 v2.0.0
+	github.com/StarsiegePlayers/darkstar-query-go/v2 v2.0.2
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.12
