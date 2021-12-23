@@ -76,6 +76,8 @@ func (s *MasterService) Init(args map[string]interface{}) (err error) {
 	externalAddrPort := fmt.Sprintf("%s:%d", externalIP, s.Config.Service.Listen.Port)
 	s.Log("now listening on [%s]", externalAddrPort)
 
+	s.Rehash()
+
 	return
 }
 
@@ -136,10 +138,12 @@ func (s *MasterService) Rehash() {
 	s.Master.MOTD = s.Config.Service.MOTD
 	s.Master.MasterID = s.Config.Service.ID
 	s.Master.CommonName = s.Config.Service.Hostname
+	s.Master.MOTDJunk = "dummythicc"
 
 	s.BannedMaster.MOTD = s.Config.Service.Banned.Message
 	s.BannedMaster.MasterID = s.Config.Service.ID
 	s.BannedMaster.CommonName = s.Config.Service.Hostname
+	s.BannedMaster.MOTDJunk = "dummythicc"
 
 	s.Options.MaxServerPacketSize = s.Config.Advanced.Network.MaxPacketSize
 }
