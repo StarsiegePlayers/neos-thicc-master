@@ -8,7 +8,7 @@ import (
 type Router struct {
 	mux *http.ServeMux
 	// routes["route"]["method"]
-	routes  map[string]map[string]http.HandlerFunc
+	routes  map[string]map[string]http.Handler
 	apiPath string
 
 	emedFS http.FileSystem
@@ -29,7 +29,7 @@ func (r RouteLogger) WriteHeader(status int) {
 func NewHttpRouter(apiPath string) (out *Router) {
 	out = &Router{
 		mux:     http.NewServeMux(),
-		routes:  make(map[string]map[string]http.HandlerFunc),
+		routes:  make(map[string]map[string]http.Handler),
 		apiPath: apiPath,
 		Logger: Logger{
 			Name:   "HTTPD Router",
@@ -44,9 +44,9 @@ func (rt *Router) Mux() (out *http.ServeMux) {
 	return rt.mux
 }
 
-func (rt *Router) AddRoute(path string, method string, fn http.HandlerFunc) {
+func (rt *Router) AddRoute(path string, method string, fn http.Handler) {
 	if _, ok := rt.routes[path]; !ok {
-		rt.routes[path] = make(map[string]http.HandlerFunc)
+		rt.routes[path] = make(map[string]http.Handler)
 	}
 	rt.routes[path][method] = fn
 }
@@ -77,7 +77,7 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 	// first match on the api overlay
 	if group, ok := rt.routes[r.RequestURI]; ok {
 		if fn, ok := group[r.Method]; ok {
-			fn(w, r)
+			fn.ServeHTTP(w, r)
 			return
 		}
 		rt.errorHandler(http.StatusMethodNotAllowed, w, r)

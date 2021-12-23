@@ -20,6 +20,8 @@ type HTTPDService struct {
 	listenIP   string
 	listenPort uint16
 
+	cache map[string]interface{}
+
 	Service
 	Logger
 }
@@ -52,6 +54,8 @@ func (s *HTTPDService) Init(args map[string]interface{}) (err error) {
 		s.router = NewHttpRouter("/api")
 	}
 	s.registerRoutes()
+
+	s.cache = make(map[string]interface{})
 
 	s.srv = s.newServer()
 	return nil
