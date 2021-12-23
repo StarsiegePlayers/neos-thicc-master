@@ -1,10 +1,10 @@
 package main
 
 import (
-	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"sync"
 	"time"
 
+	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/server"
 )
@@ -61,7 +61,7 @@ func (p *PollService) Run() {
 }
 
 func (p *PollService) query() {
-	q := darkstar.NewQuery(p.Config.Advanced.Network.ConnectionTimeout, true)
+	q := darkstar.NewQuery(p.Config.Advanced.Network.ConnectionTimeout, p.Config.Advanced.Verbose)
 	q.Addresses = p.Config.Poll.KnownMasters
 
 	pm := new(PollMasterInfo)

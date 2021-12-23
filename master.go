@@ -145,7 +145,10 @@ func (s *MasterService) Rehash() {
 	s.BannedMaster.CommonName = s.Config.Service.Hostname
 	s.BannedMaster.MOTDJunk = "dummythicc"
 
+	s.Options.Debug = s.Config.Advanced.Verbose
 	s.Options.MaxServerPacketSize = s.Config.Advanced.Network.MaxPacketSize
+	s.Options.MaxNetworkPacketSize = s.Config.Advanced.Network.MaxBufferSize
+	s.Options.Timeout = s.Config.Advanced.Network.ConnectionTimeout
 }
 
 func (s *MasterService) Shutdown() {
@@ -265,7 +268,7 @@ func (s *MasterService) registerHeartbeat(addr *net.UDPAddr, ipPort string) {
 	s.ServerList[ipPort].SolicitedTime = time.Now()
 	s.ServerList[ipPort].LastSeen = time.Now()
 
-	q := darkstar.NewQuery(s.Config.Advanced.Network.ConnectionTimeout, true)
+	q := darkstar.NewQuery(s.Options.Timeout, s.Options.Debug)
 	q.Addresses = append(q.Addresses, ipPort)
 	response, err := q.Servers()
 	if len(err) > 0 || len(response) <= 0 {

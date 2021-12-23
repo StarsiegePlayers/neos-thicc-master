@@ -51,6 +51,7 @@ type Configuration struct {
 	}
 
 	Advanced struct {
+		Verbose bool
 		Network struct {
 			ConnectionTimeout time.Duration
 			MaxPacketSize     uint16
@@ -109,6 +110,7 @@ func configInit() (config *Configuration) {
 	v.SetDefault("HTTPD.Listen.Port", "")
 	v.SetDefault("HTTPD.Admins", map[string]string{})
 
+	v.SetDefault("Advanced.Verbose", false)
 	v.SetDefault("Advanced.Maintenance.Interval", 60*time.Second)
 	v.SetDefault("Advanced.Network.ConnectionTimeout", 2*time.Second)
 	v.SetDefault("Advanced.Network.MaxPacketSize", 512)

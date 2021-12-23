@@ -98,6 +98,9 @@ httpd:
 ###### advanced options bellow ###########
 advanced:
 
+    # extra go-specific verbosity on network-based error conditions. leave off in production
+    verbose: false
+
     maintenance:
         # interval for when we should clean up stale servers [default: 60 seconds]
         maintenanceInterval: 60s
