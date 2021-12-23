@@ -1,9 +1,12 @@
 package main
 
-import "net/http"
+import (
+	"io/fs"
+	"net/http"
+)
 
 func (s *HTTPDService) registerRoutes() {
-	s.router.AddRoute("/", http.MethodGet, s.routeGetIndex)
+	s.router.SetFileSystem(fs.Sub(wwwFS, "www-build"))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodGet, s.middlewareAuth(s.routeGetAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodPut, s.middlewareAuth(s.routePutAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/login", http.MethodPost, s.middlewareThrottle(s.routePostAdminLogin))
@@ -16,10 +19,6 @@ func (s *HTTPDService) middlewareAuth(fn http.HandlerFunc) http.HandlerFunc {
 
 func (s *HTTPDService) middlewareThrottle(fn http.HandlerFunc) http.HandlerFunc {
 	return fn
-}
-
-func (s *HTTPDService) routeGetIndex(w http.ResponseWriter, r *http.Request) {
-
 }
 
 func (s *HTTPDService) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Request) {
