@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-colorable"
@@ -40,12 +41,16 @@ type Logger struct {
 	LogTag string
 }
 
+const padLen = 23
+
 func (c *Logger) Log(format string, args ...interface{}) {
 	color, ok := componentColors[c.LogTag]
 	if !ok {
 		color = componentColors["default"]
 	}
-	s := fmt.Sprintf("{%s}: %s\n", au.Colorize(c.LogTag, color), au.Colorize(format, color))
+	lpad := strings.Repeat(" ", padLen-(len(c.LogTag)))
+	tag := fmt.Sprintf("%s%s |", lpad, au.Colorize(c.LogTag, color))
+	s := fmt.Sprintf("%35s %s\n", tag, au.Colorize(format, color))
 	log.Printf(s, args...)
 }
 
@@ -54,7 +59,9 @@ func (c *Logger) LogAlert(format string, args ...interface{}) {
 	if !ok {
 		color = componentColors["default"]
 	}
-	s := fmt.Sprintf("{%s}: %s %s\n", au.Colorize(c.LogTag, color), au.Red("!"), au.Yellow(format))
+	lpad := strings.Repeat(" ", padLen-(len(c.LogTag)))
+	tag := fmt.Sprintf("%s%s %s", lpad, au.Colorize(c.LogTag, color), au.Red("!"))
+	s := fmt.Sprintf("%44s %s\n", tag, au.Yellow(format))
 	log.Printf(s, args...)
 }
 
@@ -68,12 +75,16 @@ func (c *Logger) serverColor(input string) uint8 {
 
 func (c *Logger) ServerLog(server string, format string, args ...interface{}) {
 	color := c.serverColor(server)
-	s := fmt.Sprintf("[%s]: %s\n", au.Index(color, server), au.Index(color, format))
+	lpad := strings.Repeat(" ", padLen-len(server)+1)
+	tag := fmt.Sprintf("%s[%s] |", lpad, au.Index(color, server))
+	s := fmt.Sprintf("%s %s\n", tag, au.Index(color, format))
 	log.Printf(s, args...)
 }
 
 func (c *Logger) ServerAlert(server string, format string, args ...interface{}) {
 	color := c.serverColor(server)
-	s := fmt.Sprintf("[%s]: %s %s\n", au.Index(color, server), au.Red("!"), au.Yellow(format))
+	lpad := strings.Repeat(" ", padLen-len(server)+1)
+	tag := fmt.Sprintf("%s[%s] %s", lpad, au.Index(color, server), au.Red("!"))
+	s := fmt.Sprintf("%44s %s\n", tag, au.Index(color, format))
 	log.Printf(s, args...)
 }
