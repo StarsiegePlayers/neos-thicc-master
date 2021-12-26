@@ -11,7 +11,7 @@ import (
 
 var (
 	au              aurora.Aurora
-	componentColors = make(map[string]aurora.Color)
+	componentColors = make(map[ServiceID]aurora.Color)
 )
 
 func init() {
@@ -20,47 +20,48 @@ func init() {
 
 func loggerInit(colorLogs bool) {
 	au = aurora.NewAurora(colorLogs)
-	componentColors["startup"] = aurora.MagentaFg
-	componentColors["shutdown"] = aurora.MagentaFg
-	componentColors["maintenance"] = aurora.BrightFg | aurora.GreenFg
-	componentColors["daily-maintenance"] = aurora.BrightFg | aurora.GreenFg
+	componentColors[StartupServiceID] = aurora.MagentaFg
+	componentColors[ShutdownServiceID] = aurora.MagentaFg
 
-	componentColors["master"] = aurora.BlueFg
-	componentColors["config"] = aurora.BrightFg | aurora.YellowFg
+	componentColors[MaintenanceServiceID] = aurora.BrightFg | aurora.GreenFg
+	componentColors[DailyMaintenanceServiceID] = aurora.BrightFg | aurora.GreenFg
 
-	componentColors["httpd"] = aurora.CyanFg
-	componentColors["httpd-router"] = aurora.CyanFg
+	componentColors[MasterServiceID] = aurora.BlueFg
+	componentColors[ConfigServiceID] = aurora.BrightFg | aurora.YellowFg
 
-	componentColors["poll"] = aurora.YellowFg
+	componentColors[HTTPServiceID] = aurora.CyanFg
+	componentColors[HTTPDRouterID] = aurora.CyanFg
 
-	componentColors["default"] = aurora.WhiteFg
+	componentColors[PollServiceID] = aurora.YellowFg
+
+	componentColors[DefaultService] = aurora.WhiteFg
 }
 
 type Logger struct {
-	Name   string
-	LogTag string
+	Name string
+	ID   ServiceID
 }
 
-const padLen = 23
+const LoggingTextPadLength = 23
 
 func (c *Logger) Log(format string, args ...interface{}) {
-	color, ok := componentColors[c.LogTag]
+	color, ok := componentColors[c.ID]
 	if !ok {
-		color = componentColors["default"]
+		color = componentColors[DefaultService]
 	}
-	lpad := strings.Repeat(" ", padLen-(len(c.LogTag)))
-	tag := fmt.Sprintf("%s%s |", lpad, au.Colorize(c.LogTag, color))
+	lpad := strings.Repeat(" ", LoggingTextPadLength-(len(c.Name)))
+	tag := fmt.Sprintf("%s%s |", lpad, au.Colorize(c.Name, color))
 	s := fmt.Sprintf("%35s %s\n", tag, au.Colorize(format, color))
 	log.Printf(s, args...)
 }
 
 func (c *Logger) LogAlert(format string, args ...interface{}) {
-	color, ok := componentColors[c.LogTag]
+	color, ok := componentColors[c.ID]
 	if !ok {
-		color = componentColors["default"]
+		color = componentColors[DefaultService]
 	}
-	lpad := strings.Repeat(" ", padLen-(len(c.LogTag)))
-	tag := fmt.Sprintf("%s%s %s", lpad, au.Colorize(c.LogTag, color), au.Red("!"))
+	lpad := strings.Repeat(" ", LoggingTextPadLength-(len(c.Name)))
+	tag := fmt.Sprintf("%s%s %s", lpad, au.Colorize(c.Name, color), au.Red("!"))
 	s := fmt.Sprintf("%44s %s\n", tag, au.Yellow(format))
 	log.Printf(s, args...)
 }
@@ -70,12 +71,13 @@ func (c *Logger) serverColor(input string) uint8 {
 	for _, c := range input {
 		o += byte(c)
 	}
+	// todo: see if this can be modified to eliminate dark, hard to see colors
 	return (((o % 36) * 36) + (o % 6) + 16) % 255
 }
 
 func (c *Logger) ServerLog(server string, format string, args ...interface{}) {
 	color := c.serverColor(server)
-	lpad := strings.Repeat(" ", padLen-(len(server)+1))
+	lpad := strings.Repeat(" ", LoggingTextPadLength-(len(server)+1))
 	tag := fmt.Sprintf("%s[%s] |", lpad, au.Index(color, server))
 	s := fmt.Sprintf("%s %s\n", tag, au.Index(color, format))
 	log.Printf(s, args...)
@@ -83,7 +85,7 @@ func (c *Logger) ServerLog(server string, format string, args ...interface{}) {
 
 func (c *Logger) ServerAlert(server string, format string, args ...interface{}) {
 	color := c.serverColor(server)
-	lpad := strings.Repeat(" ", padLen-(len(server)+1))
+	lpad := strings.Repeat(" ", LoggingTextPadLength-(len(server)+1))
 	tag := fmt.Sprintf("%s[%s] %s", lpad, au.Index(color, server), au.Red("!"))
 	s := fmt.Sprintf("%44s %s\n", tag, au.Index(color, format))
 	log.Printf(s, args...)

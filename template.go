@@ -1,17 +1,24 @@
 package main
 
 import (
-	"strings"
+	"bytes"
+	"sync"
 	"text/template"
 
 	"github.com/golang-module/carbon/v2"
 	"github.com/sbani/go-humanizer/numbers"
 )
 
-var templateString = `Welcome to a Testing server for Neo's Dummythiccness {{.NL}}
-You are the {{.UserNum}} user today.{{.NL}}
-Current local server time is: {{.Time}}`
-var timeFmt = `Y-m-d H:i:s T` // https://github.com/golang-module/carbon#format-sign-table
+type TemplateService struct {
+	sync.Mutex
+	Config        *Configuration
+	Services      *map[ServiceID]Service
+	Cache         *template.Template
+	MasterService *MasterService
+
+	Logger
+	Service
+}
 
 type Substitutions struct {
 	Time    string
@@ -19,20 +26,74 @@ type Substitutions struct {
 	NL      string
 }
 
-func templateCompileAndExec(input string) string {
-	tmpl := template.Must(template.New("motd").Parse(input))
+func (t *TemplateService) Init(args map[InitArg]interface{}) (err error) {
+	t.Logger = Logger{
+		Name: "template",
+		ID:   TemplateServiceID,
+	}
 
-	return templateExec(tmpl)
+	var ok bool
+	t.Config, ok = args[InitArgConfig].(*Configuration)
+	if !ok {
+		t.LogAlert("config %s", ErrorInvalidArgument)
+		return ErrorInvalidArgument
+	}
+
+	t.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
+	if !ok {
+		t.LogAlert("services %s", ErrorInvalidArgument)
+		return ErrorInvalidArgument
+	}
+
+	t.MasterService, ok = (*t.Services)[MasterServiceID].(*MasterService)
+	if !ok {
+		return ErrorInvalidArgument
+	}
+
+	t.Rehash()
+
+	return
 }
 
-func templateExec(input *template.Template) string {
-	s := new(Substitutions)
-	s.Time = carbon.Now().Format(timeFmt)
-	s.UserNum = numbers.Ordinalize(69)
-	s.NL = "\\n"
+func (t *TemplateService) Run() {
+	// noop
+}
 
-	out := new(strings.Builder)
-	err := input.Execute(out, s)
+func (t *TemplateService) Rehash() {
+	motd, err := template.New("motd").Parse(t.Config.Service.Templates.MOTD)
+	if err != nil {
+		t.LogAlert("unable to parse motd template")
+		return
+	}
+	t.Cache = motd
+}
+
+func (t *TemplateService) Shutdown() {
+	// noop
+}
+
+func (t *TemplateService) Get() string {
+	if t.Cache == nil {
+		t.Rehash()
+	}
+	if t.Cache == nil {
+		t.LogAlert("template has not been successfully compiled")
+		return ""
+	}
+
+	return t.perform(t.Cache)
+}
+
+func (t *TemplateService) perform(input *template.Template) string {
+	out := bytes.NewBuffer([]byte{})
+
+	t.Log("Current number of users: %d", len(t.MasterService.DailyStats.UniqueUsers))
+
+	err := input.Execute(out, Substitutions{
+		Time:    carbon.Now().Format(t.Config.Service.Templates.TimeFormat),
+		UserNum: numbers.Ordinalize(len(t.MasterService.DailyStats.UniqueUsers)),
+		NL:      "\\n",
+	})
 	if err != nil {
 		return ""
 	}

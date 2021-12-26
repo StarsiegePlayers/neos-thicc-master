@@ -13,8 +13,9 @@ type PollService struct {
 	sync.Mutex
 	*time.Ticker
 	Config         *Configuration
-	Services       *map[string]Service
+	Services       *map[ServiceID]Service
 	PollMasterInfo *PollMasterInfo
+	MasterService  *MasterService
 	Service
 	Logger
 }
@@ -25,18 +26,24 @@ type PollMasterInfo struct {
 	Errors  []error
 }
 
-func (p *PollService) Init(args map[string]interface{}) (err error) {
+func (p *PollService) Init(args map[InitArg]interface{}) (err error) {
 	p.Logger = Logger{
-		Name:   "Server Poll",
-		LogTag: "poll",
+		Name: "poll",
+		ID:   PollServiceID,
 	}
+
 	var ok bool
-	p.Config, ok = args["config"].(*Configuration)
+	p.Config, ok = args[InitArgConfig].(*Configuration)
 	if !ok {
 		return ErrorInvalidArgument
 	}
 
-	p.Services, ok = args["services"].(*map[string]Service)
+	p.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
+	if !ok {
+		return ErrorInvalidArgument
+	}
+
+	p.MasterService, ok = (*p.Services)[MasterServiceID].(*MasterService)
 	if !ok {
 		return ErrorInvalidArgument
 	}
@@ -72,10 +79,10 @@ func (p *PollService) query() {
 	p.PollMasterInfo = pm
 	p.Unlock()
 
-	(*p.Services)["master"].(*MasterService).RegisterExternalServerList(pm.Games)
+	p.MasterService.RegisterExternalServerList(pm.Games)
 }
 
 func (p *PollService) Shutdown() {
-	p.Log("shutdown requested")
 	p.Stop()
+	p.Log("shutdown complete")
 }

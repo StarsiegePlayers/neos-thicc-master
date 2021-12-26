@@ -7,21 +7,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
-
 	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/protocol"
+	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/server"
 )
 
 type MasterService struct {
 	sync.Mutex
-	Master         *protocol.Master
-	BannedMaster   *protocol.Master
-	Options        *protocol.Options
-	IPServiceCount map[string]uint16
-	ServerList     map[string]*ServerInfo
-	Config         *Configuration
+	Master          *protocol.Master
+	BannedMaster    *protocol.Master
+	Options         *protocol.Options
+	IPServiceCount  map[string]uint16
+	ServerList      map[string]*ServerInfo
+	Config          *Configuration
+	Services        *map[ServiceID]Service
+	TemplateService *TemplateService
 
 	pconn net.PacketConn
 
@@ -44,10 +45,10 @@ type ServerInfo struct {
 	SolicitedTime time.Time
 }
 
-func (s *MasterService) Init(args map[string]interface{}) (err error) {
+func (s *MasterService) Init(args map[InitArg]interface{}) (err error) {
 	s.Logger = Logger{
-		Name:   "Master Service",
-		LogTag: "master",
+		Name: "master",
+		ID:   MasterServiceID,
 	}
 
 	s.Master = protocol.NewMaster()
@@ -60,11 +61,19 @@ func (s *MasterService) Init(args map[string]interface{}) (err error) {
 	}
 
 	var ok bool
-	s.Config, ok = args["config"].(*Configuration)
+	s.Config, ok = args[InitArgConfig].(*Configuration)
 	if !ok {
 		s.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
 	}
+
+	s.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
+	if !ok {
+		s.LogAlert("services %s", ErrorInvalidArgument)
+		return ErrorInvalidArgument
+	}
+
+	s.TemplateService = (*s.Services)[TemplateServiceID].(*TemplateService)
 
 	addrPort := fmt.Sprintf("%s:%d", s.Config.Service.Listen.IP, s.Config.Service.Listen.Port)
 	s.pconn, err = net.ListenPacket("udp", addrPort)
@@ -86,7 +95,7 @@ func (s *MasterService) Run() {
 	buf := make([]byte, s.Config.Advanced.Network.MaxPacketSize)
 	buf2 := make([]byte, s.Config.Advanced.Network.MaxPacketSize)
 	prevIPPort := ""
-	for serviceRunning {
+	for s.Config.serviceRunning {
 		n, addr, err := s.pconn.ReadFrom(buf)
 		if err != nil {
 			switch t := err.(type) {
@@ -138,15 +147,17 @@ func (s *MasterService) DailyMaintenance() {
 }
 
 func (s *MasterService) Rehash() {
-	s.Master.MOTD = s.Config.Service.MOTD
+	const dummythicc = "dummythicc"
+
+	s.Master.MOTD = s.TemplateService.Get()
 	s.Master.MasterID = s.Config.Service.ID
 	s.Master.CommonName = s.Config.Service.Hostname
-	s.Master.MOTDJunk = "dummythicc"
+	s.Master.MOTDJunk = dummythicc
 
 	s.BannedMaster.MOTD = s.Config.Service.Banned.Message
 	s.BannedMaster.MasterID = s.Config.Service.ID
 	s.BannedMaster.CommonName = s.Config.Service.Hostname
-	s.BannedMaster.MOTDJunk = "dummythicc"
+	s.BannedMaster.MOTDJunk = dummythicc
 
 	s.Options.Debug = s.Config.Advanced.Verbose
 	s.Options.MaxServerPacketSize = s.Config.Advanced.Network.MaxPacketSize
@@ -257,6 +268,7 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 		}
 		s.Lock()
 		s.DailyStats.UniqueUsers[ipPort] = true
+		s.Master.MOTD = s.TemplateService.Get()
 		s.Unlock()
 		s.sendList(addr, ipPort, p)
 		break

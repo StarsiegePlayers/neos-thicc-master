@@ -14,51 +14,76 @@ type HTTPDService struct {
 	srv    *http.Server
 	router *Router
 
-	Config   *Configuration
-	Services *map[string]Service
+	Config        *Configuration
+	Services      *map[ServiceID]Service
+	MasterService *MasterService
+	PollService   *PollService
 
 	listenIP   string
 	listenPort uint16
 
-	cache map[string]interface{}
+	cache map[HTTPCacheID]interface{}
 
 	Service
+	Maintainable
 	Logger
 }
+
+type HTTPCacheID int
+
+const (
+	HTTPCacheMultiplayer = HTTPCacheID(iota)
+)
 
 var (
 	//go:embed www-build/*
 	wwwFS embed.FS
 )
 
-func (s *HTTPDService) Init(args map[string]interface{}) (err error) {
+func (s *HTTPDService) Init(args map[InitArg]interface{}) (err error) {
 	s.Logger = Logger{
-		Name:   "HTTP Server",
-		LogTag: "httpd",
+		Name: "HTTP Server",
+		ID:   HTTPServiceID,
 	}
 
 	var ok bool
-	s.Services, ok = args["services"].(*map[string]Service)
-	if !ok {
-		s.LogAlert("services %s", ErrorInvalidArgument)
-		return ErrorInvalidArgument
-	}
 
-	s.Config, ok = args["config"].(*Configuration)
+	s.Config, ok = args[InitArgConfig].(*Configuration)
 	if !ok {
 		s.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
 	}
 
+	s.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
+	if !ok {
+		s.LogAlert("service %s", ErrorInvalidArgument)
+		return ErrorInvalidArgument
+	}
+
+	s.MasterService, ok = (*s.Services)[MasterServiceID].(*MasterService)
+	if !ok {
+		return ErrorInvalidArgument
+	}
+
+	s.PollService, ok = (*s.Services)[PollServiceID].(*PollService)
+	if !ok {
+		// gracefully handle a disabled poll service
+		s.PollService = nil
+	}
+
 	if s.router == nil {
-		s.router = NewHttpRouter("/api")
+		s.router = NewHttpRouter()
 	}
 	s.registerRoutes()
 
-	s.cache = make(map[string]interface{})
+	s.cache = make(map[HTTPCacheID]interface{})
 
 	s.srv = s.newServer()
 	return nil
+}
+
+func (s *HTTPDService) Maintenance() {
+	s.maintenanceMultiplayerServersCache()
 }
 
 func (s *HTTPDService) newServer() (out *http.Server) {
@@ -103,13 +128,13 @@ func (s *HTTPDService) Rehash() {
 }
 
 func (s *HTTPDService) Shutdown() {
-	s.Log("shutdown requested")
-
 	ctxShutDown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer func() {
 		cancel()
 	}()
 	if err := s.srv.Shutdown(ctxShutDown); err != nil {
 		s.LogAlert("shutdown failed: %s", err)
+		return
 	}
+	s.Log("shutdown complete")
 }

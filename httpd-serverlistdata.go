@@ -1,10 +1,14 @@
 package main
 
 import (
-	"time"
-
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
+	"time"
 )
+
+type CacheResponse struct {
+	Response []byte
+	Time     time.Time
+}
 
 type ServerListData struct {
 	RequestTime time.Time

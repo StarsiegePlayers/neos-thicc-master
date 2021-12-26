@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,22 +12,27 @@ import (
 	"unicode/utf8"
 )
 
-var serviceRunning = true
-
 //go:generate go-winres make --arch "amd64,386,arm,arm64"
 
 var (
-	VERSION = "0.1.0"
-	DATE    = "2021/12/21"
-	TIME    = "69:69:69"
-	DEBUG   = "DEBUG"
+	buildVersion = ""
+	buildDate    = ""
+	buildTime    = ""
+	buildCommit  = ""
+	buildRelease = ""
 )
+
+func init() {
+	if !strings.Contains(buildRelease, "true") {
+		buildVersion = buildVersion + "-debug"
+	}
+}
 
 func main() {
 	var err error
 	startup := Logger{
-		Name:   "main",
-		LogTag: "startup",
+		Name: "startup",
+		ID:   StartupServiceID,
 	}
 
 	loggerInit(false)
@@ -34,50 +40,75 @@ func main() {
 
 	startup.Log(strings.Repeat("-", 50))
 	startup.Log(NCenter(50, "Neo's Dummy Thicc Master Server"))
-	startup.Log(NCenter(50, fmt.Sprintf("Version %s %s", VERSION, DEBUG)))
-	startup.Log(NCenter(50, "https://youtu.be/pY725Ya74VU"))
-	startup.Log(NCenter(50, fmt.Sprintf("Built on [%s@%s]", DATE, TIME)))
+	startup.Log(NCenter(50, fmt.Sprintf("Version %s", buildVersion)))
+	startup.Log(NCenter(50, EggURL))
+	startup.Log(NCenter(50, fmt.Sprintf("Built on [%s@%s]", buildDate, buildTime)))
 	startup.Log(strings.Repeat("-", 50))
-	startup.Log("Hostname:  %s", config.Service.Hostname)
-	startup.Log("MOTD:      %s", config.Service.MOTD)
-	startup.Log("Server ID: %d", config.Service.ID)
 
-	services := make(map[string]Service)
+	x, _ := json.Marshal(config)
+	startup.Log(string(x))
 
-	services["master"] = new(MasterService)
-	services["maintenance"] = new(MaintenanceService)
-	services["daily-maintenance"] = new(DailyMaintenanceService)
+	services := make(map[ServiceID]Service)
+
+	services[MasterServiceID] = new(MasterService)
+	services[MaintenanceServiceID] = new(MaintenanceService)
+	services[DailyMaintenanceServiceID] = new(DailyMaintenanceService)
+	services[TemplateServiceID] = new(TemplateService)
 
 	if config.HTTPD.Enabled {
-		services["httpd"] = new(HTTPDService)
+		services[HTTPServiceID] = new(HTTPDService)
 	}
 
 	if config.Poll.Enabled {
-		services["poll"] = new(PollService)
+		services[PollServiceID] = new(PollService)
 	}
 
-	args := make(map[string]interface{})
-	args["services"] = &services
-	args["config"] = config
+	args := make(map[InitArg]interface{})
+	args[InitArgServices] = &services
+	args[InitArgConfig] = config
 	for k, v := range services {
 		err = v.Init(args)
 		if err != nil {
 			startup.LogAlert("service {%s} failed to initialize, removing from threads list - [%s]", k, err)
 			delete(services, k)
+			continue
 		}
 		go v.Run()
 	}
 
+	startup.Log("startup finished")
+
 	// setup kill / rehash hooks
 	shutdown := Logger{
-		Name:   "main",
-		LogTag: "shutdown",
+		Name: "shutdown",
+		ID:   ShutdownServiceID,
 	}
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// exit early if nothing is running
+	if len(services) <= 0 {
+		startup.LogAlert("no services detected running! shutting down...")
+		config.serviceRunning = false
+		cancel()
+	}
+
+	rehash := Logger{
+		Name: "rehash",
+		ID:   DefaultService,
+	}
+	rehashCB := func() {
+		rehash.Log("Reloading services")
+		for _, v := range services {
+			v.Rehash()
+		}
+	}
+	config.callbackFn = rehashCB
+
+	// os signal (control+c / sigkill / sigterm) watcher
 	go func() {
-		for serviceRunning == true {
+		for config.serviceRunning == true {
 			sig := <-c
 			shutdown.Log("received [%s]", sig.String())
 			switch sig {
@@ -87,7 +118,9 @@ func main() {
 				fallthrough
 			case syscall.SIGTERM:
 				shutdown.Log("shutdown initiated...")
-				serviceRunning = false
+				config.Lock()
+				config.serviceRunning = false
+				config.Unlock()
 				for _, v := range services {
 					v.Shutdown()
 				}
@@ -106,6 +139,9 @@ func NCenter(width int, s string) string {
 	const half, space = 2, "\u0020"
 	var b bytes.Buffer
 	n := (width - utf8.RuneCountInString(s)) / half
+	if n < 0 {
+		n = 0
+	}
 	_, _ = fmt.Fprintf(&b, "%s%s", strings.Repeat(space, n), s)
 	return b.String()
 }

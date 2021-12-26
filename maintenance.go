@@ -7,7 +7,7 @@ import (
 type MaintenanceService struct {
 	*time.Ticker
 	time.Duration
-	Services *map[string]Service
+	Services *map[ServiceID]Service
 	Config   *Configuration
 
 	Service
@@ -18,18 +18,20 @@ type Maintainable interface {
 	Maintenance()
 }
 
-func (t *MaintenanceService) Init(args map[string]interface{}) (err error) {
-	t.Name = "Maintenance"
-	t.LogTag = "maintenance"
+func (t *MaintenanceService) Init(args map[InitArg]interface{}) (err error) {
+	t.Logger = Logger{
+		Name: "maintenance",
+		ID:   MaintenanceServiceID,
+	}
 
 	var ok bool
-	t.Config, ok = args["config"].(*Configuration)
+	t.Config, ok = args[InitArgConfig].(*Configuration)
 	if !ok {
 		t.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
 	}
 
-	t.Services, ok = args["services"].(*map[string]Service)
+	t.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
 	if !ok {
 		t.LogAlert("services %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
@@ -57,6 +59,6 @@ func (t *MaintenanceService) Run() {
 }
 
 func (t *MaintenanceService) Shutdown() {
-	t.Log("shutdown requested")
 	t.Stop()
+	t.Log("shutdown complete")
 }

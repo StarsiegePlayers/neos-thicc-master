@@ -1,81 +1,24 @@
 package main
 
 import (
-	"net"
-	"os"
-	"sync"
-	"time"
-
+	"crypto/rand"
+	"encoding/base64"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
+	"net"
+	"os"
 )
-
-type Configuration struct {
-	sync.Mutex
-
-	Log struct {
-		ConsoleColors bool
-		File          string
-		Components    []string
-	}
-
-	Service struct {
-		Listen struct {
-			IP   string
-			Port uint16
-		}
-		Hostname     string
-		MOTD         string
-		ServerTTL    time.Duration
-		ID           uint16
-		ServersPerIP uint16
-		Banned       struct {
-			Networks []string
-			Message  string
-		}
-	}
-
-	Poll struct {
-		Enabled      bool
-		Interval     time.Duration
-		KnownMasters []string
-	}
-
-	HTTPD struct {
-		Enabled bool
-		Listen  struct {
-			IP   string
-			Port uint16
-		}
-		Admins map[string]string
-	}
-
-	Advanced struct {
-		Verbose bool
-		Network struct {
-			ConnectionTimeout time.Duration
-			MaxPacketSize     uint16
-			MaxBufferSize     uint16
-			StunServers       []string
-		}
-		Maintenance struct {
-			Interval time.Duration
-		}
-	}
-
-	parsedBannedNets []*net.IPNet
-	externalIP       string
-}
 
 const (
 	DefaultConfigFileName = "mstrsvr.yaml"
 	EnvPrefix             = "mstrsvr"
+	EggURL                = "https://youtu.be/pY725Ya74VU"
 )
 
 func configInit() (config *Configuration) {
 	logger := Logger{
-		Name:   "config",
-		LogTag: "config",
+		Name: "config",
+		ID:   ConfigServiceID,
 	}
 	v := viper.New()
 	v.AddConfigPath(".")
@@ -84,48 +27,36 @@ func configInit() (config *Configuration) {
 	v.SetEnvPrefix(EnvPrefix)
 	v.AllowEmptyEnv(true)
 
-	v.SetDefault("Log.ConsoleColors", true)
-	v.SetDefault("Log.File", "")
-	v.SetDefault("Log.Components", []string{"*"})
-
-	v.SetDefault("Service.Listen.IP", "")
-	v.SetDefault("Service.Listen.Port", 29000)
-
-	v.SetDefault("Service.ServerTTL", 5*time.Minute)
-
-	v.SetDefault("Service.Hostname", "")
-	v.SetDefault("Service.MOTD", "")
-	v.SetDefault("Service.ID", 01)
-	v.SetDefault("Service.ServersPerIP", 15)
-
-	v.SetDefault("Service.Banned.Message", "You've been banned!")
-	v.SetDefault("Service.Banned.Networks", []string{"224.0.0.0/4"})
-
-	v.SetDefault("Poll.Enabled", true)
-	v.SetDefault("Poll.Interval", 5*time.Minute)
-	v.SetDefault("Poll.KnownMasters", []string{"master1.starsiegeplayers.com:29000", "master2.starsiegeplayers.com:29000", "master3.starsiegeplayers.com:29000"})
-
-	v.SetDefault("HTTPD.Enabled", true)
-	v.SetDefault("HTTPD.Listen.IP", "")
-	v.SetDefault("HTTPD.Listen.Port", "")
-	v.SetDefault("HTTPD.Admins", map[string]string{})
-
-	v.SetDefault("Advanced.Verbose", false)
-	v.SetDefault("Advanced.Maintenance.Interval", 60*time.Second)
-	v.SetDefault("Advanced.Network.ConnectionTimeout", 2*time.Second)
-	v.SetDefault("Advanced.Network.MaxPacketSize", 512)
-	v.SetDefault("Advanced.Network.MaxBufferSize", 32768)
-	v.SetDefault("Advanced.Network.StunServers", []string{"stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302"})
+	config.SetDefaults(v)
 
 	v.OnConfigChange(func(in fsnotify.Event) {
 		logger.Log("configuration change detected, updating...")
 		config = rehashConfig(v, logger)
 	})
-	v.WatchConfig()
 
 	config = rehashConfig(v, logger)
+	config.serviceRunning = true
 
 	loggerInit(config.Log.ConsoleColors)
+
+	var err error
+	if config.HTTPD.Secrets.Authentication == "" || len(config.HTTPD.Secrets.Authentication) < 64 {
+		logger.LogAlert("invalid http authentication secret detected, generating...")
+		config.HTTPD.Secrets.Authentication, err = GenerateSecureRandomASCIIString(64)
+		if err != nil {
+			logger.LogAlert("error creating http authentication secret [%s]", err)
+		}
+	}
+
+	if config.HTTPD.Secrets.Refresh == "" || len(config.HTTPD.Secrets.Refresh) < 64 {
+		logger.LogAlert("invalid http authentication refresh secret detected, generating...")
+		config.HTTPD.Secrets.Refresh, err = GenerateSecureRandomASCIIString(64)
+		if err != nil {
+			logger.LogAlert("error creating http authentication refresh secret [%s]", err)
+		}
+	}
+
+	v.WatchConfig()
 
 	return config
 }
@@ -163,5 +94,28 @@ func rehashConfig(v *viper.Viper, component Logger) (config *Configuration) {
 
 	config.externalIP = getExternalIP(config.Advanced.Network.StunServers)
 
+	if config.callbackFn != nil {
+		go config.callbackFn()
+	}
+
 	return
+}
+
+func GenerateSecureRandomASCIIString(length int) (string, error) {
+	result := make([]byte, length)
+	_, err := rand.Read(result)
+	if err != nil {
+		return "", err
+	}
+	for i := 0; i < length; i++ {
+		result[i] &= 0x7F
+		for result[i] < 32 || result[i] == 127 {
+			_, err = rand.Read(result[i : i+1])
+			if err != nil {
+				return "", err
+			}
+			result[i] &= 0x7F
+		}
+	}
+	return base64.RawURLEncoding.EncodeToString(result), nil
 }

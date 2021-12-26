@@ -6,8 +6,8 @@ import (
 
 func getExternalIP(stunServers []string) string {
 	logger := Logger{
-		Name:   "STUN Client",
-		LogTag: "stun-client",
+		Name: "stun-client",
+		ID:   STUNClientID,
 	}
 	output := ""
 	for _, stunServer := range stunServers {

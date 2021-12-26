@@ -1,83 +1,116 @@
 <script>
     import http from "../store/http";
+    import {writable} from "svelte/store";
+    import Login from "../components/admin/AdminLogin.svelte"
+    import Header from "../components/admin/AdminHeader.svelte"
+    import ServiceSettings from "../components/admin/ServiceSettings.svelte";
+    import LoggingSettings from "../components/admin/LoggingSettings.svelte";
+    import PollingSettings from "../components/admin/PollingSettings.svelte";
+    import HTTPDSettings from "../components/admin/HTTPDSettings.svelte";
+    import AdvancedSettings from "../components/admin/AdvancedSettings.svelte";
+
     const login = http({
-        "RequestTime": "",
-        "Errors": [],
-        "User": {},
+        loggedIn: true,
+        error: "",
+        username: "admin",
+        password: "",
+        version: "Version 0.0.1-dirty",
+        expiry: "2021-12-25T23:59:59",
     })
 
-    let state = {
-        login: {
-            loggedIn: false,
-            error: false,
-            form: {
-                Username: "",
-                Password: "",
+    const settings = http({
+        "Log": {
+            "ConsoleColors": true,
+            "File": "mstrsvr.log",
+            "Components": ["startup", "shutdown", "heartbeat", "new-server", "maintenance", "daily-maintenance", "httpd", "poll"]
+        },
+        "Service": {
+            "Listen": {
+                "IP": "",
+                "Port": 29000
             },
-            process: function() {
-                login.post("/api/v1/admin/login", state.login.form)
+            "Hostname": "Neo's DummyThicc Master",
+            "Templates": {
+                "MOTD": "Welcome to a Testing server for Neo's Dummythiccness{{.NL}}You are the {{.UserNum}} user today.{{.NL}}Current local server time is: {{.Time}}",
+                "TimeFormat": "Y-m-d H:i:s T"
+            },
+            "ServerTTL": "5m",
+            "ID": 69,
+            "ServersPerIP": 15,
+            "Banned": {
+                "Networks": ["224.0.0.0/4"],
+                "Message": "You've been banned!"
             }
         },
+        "Poll": {
+            "Enabled": true,
+            "Interval": "5m",
+            "KnownMasters": ["master1.starsiegeplayers.com:29000", "master2.starsiegeplayers.com:29000", "master3.starsiegeplayers.com:29000", "starsiege1.no-ip.org:29000", "starsiege.noip.us:29000", "southerjustice.dyndns-server.com:29000", "dustersteve.ddns.net:29000", "starsiege.from-tx.com:29000"]
+        },
+        "HTTPD": {
+            "Enabled": true,
+            "Listen": {
+                "IP": "",
+                "Port": ""
+            },
+            "Admins": {
+                Neo: "akjsldfhkljy7uoi23yhui84oy798$"
+            },
+            "Secrets": {
+                "Authentication": "VS9KTm4rX3QrPzg8YEZLVjN9QSNcUW8oeT47VSB3cWlicDdTTkNqZUxSJTIgYmYsL0EzN1MzYF8mWUVDbT91VQ",
+                "Refresh": "ZHNta09aYTN8XHVsQU07RiQqYV1VOy46bTx9bU8ifnske1xfWVE9e3JYJEw9KjZGYWtqKz8tZX4sbiAmbyxadQ"
+            }
+        },
+        "Advanced": {
+            "Verbose": false,
+            "Network": {
+                "ConnectionTimeout": "2s",
+                "MaxPacketSize": 512,
+                "MaxBufferSize": 32768,
+                "StunServers": ["stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302"]
+            },
+            "Maintenance": {
+                "Interval": "1m"
+            }
+        },
+    })
+
+    const form = writable({
+        advanced: false,
+        masters: "",
+        network: "",
+        admin: "",
+        stunserver: "",
+    })
+
+    const adminFormProcess = () => {
+
     }
 
 </script>
 
-{#if !state.login.loggedIn}
-    <div class="form-signin bg-primary bg-opacity-50 rounded-3 boarder-3 p-5">
-        <form on:submit|preventDefault={state.login.process}>
-            <img class="mb-4" src="/static/img/leftlogo.png" alt="">
-            <h1 class="h3 mb-3 fw-normal">Please sign in</h1>
-
-            <div class="form-floating">
-                <input bind:value={state.login.form.Username} type="email" class="form-control" id="floatingInput" placeholder="user" required>
-                <label for="floatingInput">Username</label>
-            </div>
-            <div class="form-floating">
-                <input bind:value={state.login.form.Password} type="password" class="form-control" id="floatingPassword" placeholder="password" required>
-                <label for="floatingPassword">Password</label>
-            </div>
-
-            <div class="checkbox mb-3">
-                <label>
-                    <input type="checkbox" value="remember-me"> Remember me
-                </label>
-            </div>
-            {#if $login.errors.Length > 0}
-                <div class="h5 mb-3 fw-normal">Invalid Username or Password, please try again</div>
-            {/if}
-            <button class="w-100 btn btn-lg btn-primary" type="submit">Sign in</button>
-            <p class="mt-5 mb-3 text-muted">2021 - StarsiegePlayers</p>
+{#if $login.loggedIn}
+    <Login login={login} />
+{:else}
+    <div class="admin-panel bg-primary bg-opacity-50 rounded-3 boarder-3 p-5">
+        <Header login={login} />
+        <form on:submit|preventDefault={adminFormProcess}>
+            <ServiceSettings settings={settings} form={form} />
+            <LoggingSettings settings={settings} form={form} />
+            <PollingSettings settings={settings} form={form} />
+            <HTTPDSettings settings={settings} form={form} />
+            <AdvancedSettings settings={settings} form={form} />
+            <input class="btn-lg btn-success" type="submit" value="Save Changes">
         </form>
     </div>
 {/if}
 
 <style>
-    .form-signin {
+    .admin-panel {
         width: 100%;
-        max-width: 35vw;
+        max-width: 50vw;
         padding: 15px;
         margin: auto;
         text-align: center;
-    }
-
-    .form-signin .checkbox {
-        font-weight: 400;
-        text-align: left;
-    }
-
-    .form-signin .form-floating:focus-within {
-        z-index: 2;
-    }
-
-    .form-signin input[type="email"] {
-        margin-bottom: -1px;
-        border-bottom-right-radius: 0;
-        border-bottom-left-radius: 0;
-    }
-
-    .form-signin input[type="password"] {
-        margin-bottom: 10px;
-        border-top-left-radius: 0;
-        border-top-right-radius: 0;
     }
 </style>

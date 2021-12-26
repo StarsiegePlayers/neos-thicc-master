@@ -8,7 +8,7 @@ type DailyMaintenanceService struct {
 	*time.Timer
 	Next     time.Time
 	Diff     time.Duration
-	Services *map[string]Service
+	Services *map[ServiceID]Service
 	Config   *Configuration
 
 	Service
@@ -19,18 +19,18 @@ type DailyMaintainable interface {
 	DailyMaintenance()
 }
 
-func (t *DailyMaintenanceService) Init(args map[string]interface{}) (err error) {
+func (t *DailyMaintenanceService) Init(args map[InitArg]interface{}) (err error) {
 	t.Logger = Logger{
-		Name:   "Daily Maintenance",
-		LogTag: "daily-maintenance",
+		Name: "daily-maintenance",
+		ID:   DailyMaintenanceServiceID,
 	}
 	var ok bool
-	t.Config, ok = args["config"].(*Configuration)
+	t.Config, ok = args[InitArgConfig].(*Configuration)
 	if !ok {
 		return ErrorInvalidArgument
 	}
 
-	t.Services, ok = args["services"].(*map[string]Service)
+	t.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
 	if !ok {
 		return ErrorInvalidArgument
 	}
@@ -75,6 +75,6 @@ func (t *DailyMaintenanceService) update() {
 }
 
 func (t *DailyMaintenanceService) Shutdown() {
-	t.Log("shutdown requested")
 	t.Stop()
+	t.Log("shutdown complete")
 }

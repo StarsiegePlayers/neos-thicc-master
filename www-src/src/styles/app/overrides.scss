@@ -1,4 +1,10 @@
 
+@import './_variables.scss';
+
 body {
   overflow-x: hidden;
+}
+
+.form-control {
+  background: $input-bg;
 }

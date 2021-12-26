@@ -8,8 +8,7 @@ import (
 type Router struct {
 	mux *http.ServeMux
 	// routes["route"]["method"]
-	routes  map[string]map[string]http.Handler
-	apiPath string
+	routes map[string]map[string]http.Handler
 
 	emedFS http.FileSystem
 
@@ -26,14 +25,13 @@ func (r RouteLogger) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-func NewHttpRouter(apiPath string) (out *Router) {
+func NewHttpRouter() (out *Router) {
 	out = &Router{
-		mux:     http.NewServeMux(),
-		routes:  make(map[string]map[string]http.Handler),
-		apiPath: apiPath,
+		mux:    http.NewServeMux(),
+		routes: make(map[string]map[string]http.Handler),
 		Logger: Logger{
-			Name:   "HTTPD Router",
-			LogTag: "httpd-router",
+			Name: "httpd-router",
+			ID:   HTTPDRouterID,
 		},
 	}
 	out.mux.HandleFunc("/", out.log(out.router))
@@ -71,8 +69,8 @@ func (rt *Router) log(fn http.HandlerFunc) http.HandlerFunc {
 
 func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Server", "CERN/2.15")
-	w.Header().Add("X-DummyThiccMasterVersion", VERSION)
-	w.Header().Add("X-DummyThiccMeme", "https://youtu.be/pY725Ya74VU")
+	w.Header().Add("X-DummyThiccMasterVersion", buildVersion)
+	w.Header().Add("X-DummyThiccMeme", EggURL)
 
 	// first match on the api overlay
 	if group, ok := rt.routes[r.RequestURI]; ok {

@@ -1,0 +1,84 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+project_name: mstrsvr
+dist: build
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+    - go vet
+builds:
+  - id: mstrsvr
+    no_unique_dist_dir: true
+    binary: "{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}/{{ .ProjectName }}_{{ .Os }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+      - freebsd
+      - openbsd
+      - netbsd
+      - darwin
+      - android
+    goarch:
+      - amd64
+      - 386
+      - arm64
+      - arm
+    goarm:
+      - 5
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: darwin
+        goarch: arm
+      - goos: android
+        goarch: amd64
+      - goos: android
+        goarch: 386
+      - goos: android
+        goarch: arm
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+  - id: mstrsvr-mips
+    no_unique_dist_dir: true
+    binary: "mips/{{ .ProjectName }}_{{.Arch}}_{{ .Os }}_{{ .Mips }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - openbsd
+    goarch:
+      - mips
+      - mipsle
+      - mips64
+      - mips64le
+    gomips:
+      - hardfloat
+      - softfloat
+universal_binaries:
+  - name_template: "{{ .ProjectName }}"
+    replace: true
+archives:
+  - replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
+    files:
+      - README.md
+      - LICENSE
+      - mstrsvr.yaml
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-dirty"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

@@ -40,100 +40,76 @@ func (s *HTTPDService) middlewareThrottle(next http.HandlerFunc) http.Handler {
 }
 
 func (s *HTTPDService) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Request) {
-	cacheData, ok := s.cache["MultiplayerServers"].(*ServerListData)
-
-	// only update when stale
-	if !ok || cacheData.RequestTime.Before(time.Now().Add(-60*time.Second)) {
-		mstr := (*s.Services)["master"].(*MasterService)
-		mstr.Lock()
-		games := make([]*query.PingInfoQuery, 0)
-		for _, v := range mstr.ServerList {
-			games = append(games, v.PingInfoQuery)
-		}
-		mstr.Unlock()
-
-		poll := (*s.Services)["poll"].(*PollService)
-		poll.Lock()
-		errors := make([]string, 0)
-		for _, v := range poll.PollMasterInfo.Errors {
-			errors = append(errors, v.Error())
-		}
-
-		masters := make([]*MasterQuery, 0)
-		for _, v := range poll.PollMasterInfo.Masters {
-			masters = append(masters, &MasterQuery{
-				MasterQuery: v,
-				ServerCount: len(v.Servers),
-			})
-		}
-		poll.Unlock()
-
-		// update the cache
-		cacheData = &ServerListData{
-			RequestTime: time.Now(),
-			Masters:     masters,
-			Games:       games,
-			Errors:      errors,
-		}
-
-		sort.Sort(cacheData.Masters)
-		sort.Sort(cacheData.Games)
-
-		s.Lock()
-		s.cache["MultiplayerServers"] = cacheData
-		s.Unlock()
+	cacheData, ok := s.cache[HTTPCacheMultiplayer].(*CacheResponse)
+	// if we don't have something in the cache, populate it.
+	if !ok {
+		cacheData = s.maintenanceMultiplayerServersCache()
 	}
 
 	w.Header().Add("Content-Type", "application/json")
-	w.Header().Add("Last-Modified", cacheData.RequestTime.Format(time.RFC1123))
-
-	jsonOut, err := json.Marshal(cacheData)
-	if err != nil {
-		s.LogAlert("error marshalling api server list %s", err)
-		return
-	}
-
-	_, err = w.Write(jsonOut)
-	if err != nil {
-		s.LogAlert("error writing api server list %s", err)
-		return
-	}
-}
-
-func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.Request) {
-	jsonOut, err := json.Marshal(struct {
-		LoggedIn bool
-		User     string
-	}{
-		LoggedIn: false,
-		User:     "",
-	})
-	if err != nil {
-		s.LogAlert("error marshalling api server list %s", err)
-		return
-	}
-
-	_, err = w.Write(jsonOut)
-	if err != nil {
-		s.LogAlert("error writing api server list %s", err)
-		return
-	}
-
-}
-
-func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func (s *HTTPDService) routePutAdminServerSettings(w http.ResponseWriter, r *http.Request) {
-
-}
-
-func (s *HTTPDService) routeGetAdminServerSettings(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Add("Last-Modified", cacheData.Time.Format(time.RFC1123))
+	w.Write(cacheData.Response)
 }
 
 func (s *HTTPDService) routeGetYeeted(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Location", "https://youtu.be/pY725Ya74VU")
 	w.WriteHeader(http.StatusTemporaryRedirect)
+}
+
+func (s *HTTPDService) maintenanceMultiplayerServersCache() (cacheData *CacheResponse) {
+	games := make([]*query.PingInfoQuery, 0)
+	errors := make([]string, 0)
+	masters := make([]*MasterQuery, 0)
+
+	// MasterService should never be nil, but just in case
+	if s.MasterService != nil {
+		s.MasterService.Lock()
+		for _, v := range s.MasterService.ServerList {
+			games = append(games, v.PingInfoQuery)
+		}
+		s.MasterService.Unlock()
+	}
+
+	// skip if poll service isn't running
+	if s.PollService != nil {
+		s.PollService.Lock()
+		for _, v := range s.PollService.PollMasterInfo.Errors {
+			errors = append(errors, v.Error())
+		}
+
+		for _, v := range s.PollService.PollMasterInfo.Masters {
+			masters = append(masters, &MasterQuery{
+				MasterQuery: v,
+				ServerCount: len(v.Servers),
+			})
+		}
+		s.PollService.Unlock()
+	}
+
+	// update the cache
+	data := &ServerListData{
+		RequestTime: time.Now(),
+		Masters:     masters,
+		Games:       games,
+		Errors:      errors,
+	}
+
+	sort.Sort(data.Masters)
+	sort.Sort(data.Games)
+
+	jsonOut, err := json.Marshal(data)
+	if err != nil {
+		s.LogAlert("error marshalling api server list %s", err)
+		return
+	}
+
+	cacheData = &CacheResponse{
+		Response: jsonOut,
+		Time:     data.RequestTime,
+	}
+
+	s.Lock()
+	s.cache[HTTPCacheMultiplayer] = cacheData
+	s.Unlock()
+	return
 }
