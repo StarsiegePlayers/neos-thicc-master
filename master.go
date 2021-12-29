@@ -20,7 +20,7 @@ type MasterService struct {
 	Options         *protocol.Options
 	IPServiceCount  map[string]uint16
 	ServerList      map[string]*ServerInfo
-	Config          *Configuration
+	Config          *ConfigurationService
 	Services        *map[ServiceID]Service
 	TemplateService *TemplateService
 
@@ -61,7 +61,7 @@ func (s *MasterService) Init(args map[InitArg]interface{}) (err error) {
 	}
 
 	var ok bool
-	s.Config, ok = args[InitArgConfig].(*Configuration)
+	s.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		s.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
@@ -75,14 +75,14 @@ func (s *MasterService) Init(args map[InitArg]interface{}) (err error) {
 
 	s.TemplateService = (*s.Services)[TemplateServiceID].(*TemplateService)
 
-	addrPort := fmt.Sprintf("%s:%d", s.Config.Service.Listen.IP, s.Config.Service.Listen.Port)
+	addrPort := fmt.Sprintf("%s:%d", s.Config.Values.Service.Listen.IP, s.Config.Values.Service.Listen.Port)
 	s.pconn, err = net.ListenPacket("udp", addrPort)
 	if err != nil {
 		s.LogAlert("unable to bind to %s - [%s]", addrPort, err)
 		return
 	}
-	externalIP := s.Config.externalIP
-	externalAddrPort := fmt.Sprintf("%s:%d", externalIP, s.Config.Service.Listen.Port)
+	externalIP := s.Config.Values.externalIP
+	externalAddrPort := fmt.Sprintf("%s:%d", externalIP, s.Config.Values.Service.Listen.Port)
 	s.Log("now listening on [%s]", externalAddrPort)
 
 	s.Rehash()
@@ -92,10 +92,10 @@ func (s *MasterService) Init(args map[InitArg]interface{}) (err error) {
 
 func (s *MasterService) Run() {
 	// start listening loop
-	buf := make([]byte, s.Config.Advanced.Network.MaxPacketSize)
-	buf2 := make([]byte, s.Config.Advanced.Network.MaxPacketSize)
+	buf := make([]byte, s.Config.Values.Advanced.Network.MaxPacketSize)
+	buf2 := make([]byte, s.Config.Values.Advanced.Network.MaxPacketSize)
 	prevIPPort := ""
-	for s.Config.serviceRunning {
+	for s.Config.Values.serviceRunning {
 		n, addr, err := s.pconn.ReadFrom(buf)
 		if err != nil {
 			switch t := err.(type) {
@@ -150,19 +150,19 @@ func (s *MasterService) Rehash() {
 	const dummythicc = "dummythicc"
 
 	s.Master.MOTD = s.TemplateService.Get()
-	s.Master.MasterID = s.Config.Service.ID
-	s.Master.CommonName = s.Config.Service.Hostname
+	s.Master.MasterID = s.Config.Values.Service.ID
+	s.Master.CommonName = s.Config.Values.Service.Hostname
 	s.Master.MOTDJunk = dummythicc
 
-	s.BannedMaster.MOTD = s.Config.Service.Banned.Message
-	s.BannedMaster.MasterID = s.Config.Service.ID
-	s.BannedMaster.CommonName = s.Config.Service.Hostname
+	s.BannedMaster.MOTD = s.Config.Values.Service.Banned.Message
+	s.BannedMaster.MasterID = s.Config.Values.Service.ID
+	s.BannedMaster.CommonName = s.Config.Values.Service.Hostname
 	s.BannedMaster.MOTDJunk = dummythicc
 
-	s.Options.Debug = s.Config.Advanced.Verbose
-	s.Options.MaxServerPacketSize = s.Config.Advanced.Network.MaxPacketSize
-	s.Options.MaxNetworkPacketSize = s.Config.Advanced.Network.MaxBufferSize
-	s.Options.Timeout = s.Config.Advanced.Network.ConnectionTimeout
+	s.Options.Debug = s.Config.Values.Advanced.Verbose
+	s.Options.MaxServerPacketSize = s.Config.Values.Advanced.Network.MaxPacketSize
+	s.Options.MaxNetworkPacketSize = s.Config.Values.Advanced.Network.MaxBufferSize
+	s.Options.Timeout = s.Config.Values.Advanced.Network.ConnectionTimeout.Duration
 }
 
 func (s *MasterService) Shutdown() {
@@ -178,7 +178,7 @@ func (s *MasterService) CheckRemoveServer(ipPort string) (removed bool, queried 
 	queried = false
 	svr := s.ServerList[ipPort]
 	addr := svr.Server.Address.IP.String()
-	if svr.IsExpired(s.Config.Service.ServerTTL) {
+	if svr.IsExpired(s.Config.Values.Service.ServerTTL.Duration) {
 		err := svr.Query()
 		queried = true
 		if err != nil {
@@ -243,7 +243,7 @@ func (s *MasterService) serveMaster(addr *net.UDPAddr, buf []byte) {
 	}
 
 	isBanned := false
-	for _, v := range s.Config.parsedBannedNets {
+	for _, v := range s.Config.Values.parsedBannedNets {
 		if v.Contains(addr.IP) {
 			s.ServerAlert(addr.IP.String(), "Received a %s packet from banned host", p.Type.String())
 			if p.Type != protocol.PingInfoQuery {
@@ -311,8 +311,8 @@ func (s *MasterService) registerPingInfo(addr *net.UDPAddr, ipPort string) {
 	s.Lock()
 	if _, exist := s.Master.Servers[ipPort]; !exist {
 		count := s.IPServiceCount[addr.IP.String()]
-		if uint16(count)+1 > s.Config.Service.ServersPerIP {
-			s.ServerAlert(ipPort, "Rejecting additional server for IP - count: %d/%d", count, s.Config.Service.ServersPerIP)
+		if uint16(count)+1 > s.Config.Values.Service.ServersPerIP {
+			s.ServerAlert(ipPort, "Rejecting additional server for IP - count: %d/%d", count, s.Config.Values.Service.ServersPerIP)
 			s.Unlock()
 			return
 		}
@@ -325,7 +325,7 @@ func (s *MasterService) registerPingInfo(addr *net.UDPAddr, ipPort string) {
 			LastSeen:   time.Now(),
 		}
 		count++
-		s.ServerLog(ipPort, "New Server for IP - total server count for IP: %d/%d", count, s.Config.Service.ServersPerIP)
+		s.ServerLog(ipPort, "New Server for IP - total server count for IP: %d/%d", count, s.Config.Values.Service.ServersPerIP)
 		s.IPServiceCount[addr.IP.String()] = count
 	}
 

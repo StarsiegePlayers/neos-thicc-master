@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	"unicode/utf8"
 )
 
 //go:generate go-winres make --arch "amd64,386,arm,arm64"
@@ -36,17 +33,18 @@ func main() {
 	}
 
 	loggerInit(false)
-	config := configInit()
+	configService := new(ConfigurationService)
+	_ = configService.Init(nil)
 
 	startup.Log(strings.Repeat("-", 50))
-	startup.Log(NCenter(50, "Neo's Dummy Thicc Master Server"))
-	startup.Log(NCenter(50, fmt.Sprintf("Version %s", buildVersion)))
-	startup.Log(NCenter(50, EggURL))
-	startup.Log(NCenter(50, fmt.Sprintf("Built on [%s@%s]", buildDate, buildTime)))
+	startup.Log(startup.NCenter(50, "Neo's Dummy Thicc Master Server"))
+	startup.Log(startup.NCenter(50, fmt.Sprintf("Version %s", buildVersion)))
+	startup.Log(startup.NCenter(50, EggURL))
+	startup.Log(startup.NCenter(50, fmt.Sprintf("Built on [%s@%s]", buildDate, buildTime)))
 	startup.Log(strings.Repeat("-", 50))
 
-	x, _ := json.Marshal(config)
-	startup.Log(string(x))
+	//x, _ := json.Marshal(configService.Values)
+	//startup.Log(string(x))
 
 	services := make(map[ServiceID]Service)
 
@@ -55,17 +53,17 @@ func main() {
 	services[DailyMaintenanceServiceID] = new(DailyMaintenanceService)
 	services[TemplateServiceID] = new(TemplateService)
 
-	if config.HTTPD.Enabled {
+	if configService.Values.HTTPD.Enabled {
 		services[HTTPServiceID] = new(HTTPDService)
 	}
 
-	if config.Poll.Enabled {
+	if configService.Values.Poll.Enabled {
 		services[PollServiceID] = new(PollService)
 	}
 
 	args := make(map[InitArg]interface{})
 	args[InitArgServices] = &services
-	args[InitArgConfig] = config
+	args[InitArgConfig] = configService
 	for k, v := range services {
 		err = v.Init(args)
 		if err != nil {
@@ -90,7 +88,7 @@ func main() {
 	// exit early if nothing is running
 	if len(services) <= 0 {
 		startup.LogAlert("no services detected running! shutting down...")
-		config.serviceRunning = false
+		configService.Values.serviceRunning = false
 		cancel()
 	}
 
@@ -104,11 +102,11 @@ func main() {
 			v.Rehash()
 		}
 	}
-	config.callbackFn = rehashCB
+	configService.Values.callbackFn = rehashCB
 
 	// os signal (control+c / sigkill / sigterm) watcher
 	go func() {
-		for config.serviceRunning == true {
+		for configService.Values.serviceRunning == true {
 			sig := <-c
 			shutdown.Log("received [%s]", sig.String())
 			switch sig {
@@ -118,9 +116,9 @@ func main() {
 				fallthrough
 			case syscall.SIGTERM:
 				shutdown.Log("shutdown initiated...")
-				config.Lock()
-				config.serviceRunning = false
-				config.Unlock()
+				configService.Values.Lock()
+				configService.Values.serviceRunning = false
+				configService.Values.Unlock()
 				for _, v := range services {
 					v.Shutdown()
 				}
@@ -133,15 +131,4 @@ func main() {
 	// wait for everything to finish before exiting main
 	<-ctx.Done()
 	shutdown.Log("process complete")
-}
-
-func NCenter(width int, s string) string {
-	const half, space = 2, "\u0020"
-	var b bytes.Buffer
-	n := (width - utf8.RuneCountInString(s)) / half
-	if n < 0 {
-		n = 0
-	}
-	_, _ = fmt.Fprintf(&b, "%s%s", strings.Repeat(space, n), s)
-	return b.String()
 }

@@ -9,7 +9,7 @@ type DailyMaintenanceService struct {
 	Next     time.Time
 	Diff     time.Duration
 	Services *map[ServiceID]Service
-	Config   *Configuration
+	Config   *ConfigurationService
 
 	Service
 	Logger
@@ -25,7 +25,7 @@ func (t *DailyMaintenanceService) Init(args map[InitArg]interface{}) (err error)
 		ID:   DailyMaintenanceServiceID,
 	}
 	var ok bool
-	t.Config, ok = args[InitArgConfig].(*Configuration)
+	t.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		return ErrorInvalidArgument
 	}

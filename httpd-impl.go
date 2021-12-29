@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/fs"
+	"net"
 	"net/http"
 	"sort"
 	"time"
@@ -17,24 +18,44 @@ type MasterQuery struct {
 
 func (s *HTTPDService) registerRoutes() {
 	s.router.SetFileSystem(fs.Sub(wwwFS, "www-build"))
+	s.router.AddRoute("/api/v1/multiplayer/servers", http.MethodGet, http.HandlerFunc(s.routeGetMultiplayerServers))
+	s.router.AddRoute("/api/v1/admin/login", http.MethodGet, s.middlewareThrottle(s.routeGetAdminLoginStatus))
+	s.router.AddRoute("/api/v1/admin/login", http.MethodPost, s.middlewareThrottle(s.routePostAdminLogin))
+	s.router.AddRoute("/api/v1/admin/login", http.MethodDelete, s.middlewareThrottle(s.routeAdminLogout))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodGet, s.middlewareAuth(s.routeGetAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodPut, s.middlewareAuth(s.routePutAdminServerSettings))
-	s.router.AddRoute("/api/v1/admin/login", http.MethodPost, s.middlewareThrottle(s.routePostAdminLogin))
-	s.router.AddRoute("/api/v1/admin/login", http.MethodGet, s.middlewareThrottle(s.routeGetAdminLoginStatus))
-	s.router.AddRoute("/api/v1/multiplayer/servers", http.MethodGet, http.HandlerFunc(s.routeGetMultiplayerServers))
 	s.router.AddRoute("/yeet", http.MethodGet, http.HandlerFunc(s.routeGetYeeted))
 }
 
 func (s *HTTPDService) middlewareAuth(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Our middleware logic goes here...
+		err := s.adminIsTokenValid(r)
+		if err != nil {
+			// no cookie / logged out? 401
+			s.router.jsonOut(w, HTTPError{
+				Error:     "unauthorized",
+				ErrorCode: http.StatusUnauthorized,
+			})
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
 
 func (s *HTTPDService) middlewareThrottle(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Our middleware logic goes here...
+		throttle := s.cache[HTTPCacheThrottle].(map[string]int)
+		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if throttle[host] > 15 {
+			s.router.jsonOut(w, HTTPError{
+				Error:     "enhance your calm",
+				ErrorCode: 420,
+			})
+			return
+		}
+		s.Lock()
+		throttle[host]++
+		s.Unlock()
 		next.ServeHTTP(w, r)
 	})
 }
@@ -112,4 +133,12 @@ func (s *HTTPDService) maintenanceMultiplayerServersCache() (cacheData *CacheRes
 	s.cache[HTTPCacheMultiplayer] = cacheData
 	s.Unlock()
 	return
+}
+
+func (s *HTTPDService) clearThrottleCache() {
+	cache := s.cache[HTTPCacheThrottle].(map[string]int)
+	if len(cache) >= 1 {
+		s.Logger.Log("[maintenance] resetting throttle cache for %d clients", len(cache))
+		s.cache[HTTPCacheThrottle] = make(map[string]int)
+	}
 }

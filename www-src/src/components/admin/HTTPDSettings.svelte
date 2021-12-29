@@ -77,6 +77,8 @@
                 <label for="httpd.secrets.refresh">Refresh Secret</label>
                 <input bind:value={$settings.HTTPD.Secrets.Refresh} on:focus={onFocus} on:blur={onBlur} type="password" class="form-control" id="httpd.secrets.refresh" placeholder="">
             </fieldset>
+            <label for="httpd.maxrequestsperminute" class="form-label text-start">Max Requests Per Minute Per IP</label>
+            <input id="httpd.maxrequestsperminute" class="form-control" placeholder="15" bind:value={$settings.HTTPD.MaxRequestsPerMinute}>
         {/if}
     </fieldset>
 </div>

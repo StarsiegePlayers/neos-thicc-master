@@ -14,8 +14,8 @@ type HTTPDService struct {
 	srv    *http.Server
 	router *Router
 
-	Config        *Configuration
 	Services      *map[ServiceID]Service
+	Config        *ConfigurationService
 	MasterService *MasterService
 	PollService   *PollService
 
@@ -33,6 +33,8 @@ type HTTPCacheID int
 
 const (
 	HTTPCacheMultiplayer = HTTPCacheID(iota)
+	HTTPCacheAdminSessions
+	HTTPCacheThrottle
 )
 
 var (
@@ -48,7 +50,7 @@ func (s *HTTPDService) Init(args map[InitArg]interface{}) (err error) {
 
 	var ok bool
 
-	s.Config, ok = args[InitArgConfig].(*Configuration)
+	s.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		s.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
@@ -77,24 +79,27 @@ func (s *HTTPDService) Init(args map[InitArg]interface{}) (err error) {
 	s.registerRoutes()
 
 	s.cache = make(map[HTTPCacheID]interface{})
+	s.cache[HTTPCacheAdminSessions] = make(map[string]*HTTPAdminSession, 0)
+	s.cache[HTTPCacheThrottle] = make(map[string]int)
 
 	s.srv = s.newServer()
 	return nil
 }
 
 func (s *HTTPDService) Maintenance() {
-	s.maintenanceMultiplayerServersCache()
+	go s.maintenanceMultiplayerServersCache()
+	s.clearThrottleCache()
 }
 
 func (s *HTTPDService) newServer() (out *http.Server) {
-	s.listenIP = s.Config.HTTPD.Listen.IP
+	s.listenIP = s.Config.Values.HTTPD.Listen.IP
 	if s.listenIP == "" {
-		s.listenIP = s.Config.Service.Listen.IP
+		s.listenIP = s.Config.Values.Service.Listen.IP
 	}
 
-	s.listenPort = s.Config.HTTPD.Listen.Port
+	s.listenPort = s.Config.Values.HTTPD.Listen.Port
 	if s.listenPort <= 0 {
-		s.listenPort = s.Config.Service.Listen.Port
+		s.listenPort = s.Config.Values.Service.Listen.Port
 	}
 
 	ipPort := fmt.Sprintf("%s:%d", s.listenIP, s.listenPort)
@@ -112,7 +117,7 @@ func (s *HTTPDService) Run() {
 	}
 
 	localIpPort := fmt.Sprintf("%s:%d", ip, s.listenPort)
-	externalIpPort := fmt.Sprintf("%s:%d", s.Config.externalIP, s.listenPort)
+	externalIpPort := fmt.Sprintf("%s:%d", s.Config.Values.externalIP, s.listenPort)
 
 	s.Log("now listening on http://%s/ | http://%s/", externalIpPort, localIpPort)
 	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -121,7 +126,7 @@ func (s *HTTPDService) Run() {
 }
 
 func (s *HTTPDService) Rehash() {
-	listenAddr := fmt.Sprintf("%s:%d", s.Config.Service.Listen.IP, s.Config.Service.Listen.Port)
+	listenAddr := fmt.Sprintf("%s:%d", s.Config.Values.Service.Listen.IP, s.Config.Values.Service.Listen.Port)
 	if s.srv.Addr != listenAddr {
 		s.Shutdown()
 	}

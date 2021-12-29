@@ -11,10 +11,10 @@ import (
 
 type TemplateService struct {
 	sync.Mutex
-	Config        *Configuration
 	Services      *map[ServiceID]Service
 	Cache         *template.Template
 	MasterService *MasterService
+	Config        *ConfigurationService
 
 	Logger
 	Service
@@ -33,7 +33,7 @@ func (t *TemplateService) Init(args map[InitArg]interface{}) (err error) {
 	}
 
 	var ok bool
-	t.Config, ok = args[InitArgConfig].(*Configuration)
+	t.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		t.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
@@ -60,12 +60,14 @@ func (t *TemplateService) Run() {
 }
 
 func (t *TemplateService) Rehash() {
-	motd, err := template.New("motd").Parse(t.Config.Service.Templates.MOTD)
-	if err != nil {
-		t.LogAlert("unable to parse motd template")
-		return
+	if t.Config.Values.Service.Templates.MOTD != "" {
+		motd, err := template.New("motd").Parse(t.Config.Values.Service.Templates.MOTD)
+		if err != nil {
+			t.LogAlert("unable to parse motd template")
+			return
+		}
+		t.Cache = motd
 	}
-	t.Cache = motd
 }
 
 func (t *TemplateService) Shutdown() {
@@ -73,30 +75,20 @@ func (t *TemplateService) Shutdown() {
 }
 
 func (t *TemplateService) Get() string {
-	if t.Cache == nil {
-		t.Rehash()
-	}
-	if t.Cache == nil {
-		t.LogAlert("template has not been successfully compiled")
-		return ""
-	}
+	if t.Cache != nil {
+		out := bytes.NewBuffer([]byte{})
 
-	return t.perform(t.Cache)
-}
+		err := t.Cache.Execute(out, Substitutions{
+			Time:    carbon.Now().Format(t.Config.Values.Service.Templates.TimeFormat),
+			UserNum: numbers.Ordinalize(len(t.MasterService.DailyStats.UniqueUsers)),
+			NL:      "\\n",
+		})
+		if err != nil {
+			return ""
+		}
 
-func (t *TemplateService) perform(input *template.Template) string {
-	out := bytes.NewBuffer([]byte{})
-
-	t.Log("Current number of users: %d", len(t.MasterService.DailyStats.UniqueUsers))
-
-	err := input.Execute(out, Substitutions{
-		Time:    carbon.Now().Format(t.Config.Service.Templates.TimeFormat),
-		UserNum: numbers.Ordinalize(len(t.MasterService.DailyStats.UniqueUsers)),
-		NL:      "\\n",
-	})
-	if err != nil {
-		return ""
+		return out.String()
 	}
 
-	return out.String()
+	return ""
 }

@@ -10,73 +10,76 @@
     import AdvancedSettings from "../components/admin/AdvancedSettings.svelte";
 
     const login = http({
-        loggedIn: true,
-        error: "",
-        username: "admin",
-        password: "",
-        version: "Version 0.0.1-dirty",
-        expiry: "2021-12-25T23:59:59",
+        LoggedIn: false,
+        Error: "",
+        Username: "",
+        Password: "",
+        Version: "",
+        Expiry: "",
     })
+    login.get("/api/v1/admin/login")
 
     const settings = http({
         "Log": {
-            "ConsoleColors": true,
-            "File": "mstrsvr.log",
-            "Components": ["startup", "shutdown", "heartbeat", "new-server", "maintenance", "daily-maintenance", "httpd", "poll"]
+            "ConsoleColors": false,
+            "File": "",
+            "Components": []
         },
         "Service": {
             "Listen": {
                 "IP": "",
-                "Port": 29000
+                "Port": 0
             },
-            "Hostname": "Neo's DummyThicc Master",
+            "Hostname": "",
             "Templates": {
-                "MOTD": "Welcome to a Testing server for Neo's Dummythiccness{{.NL}}You are the {{.UserNum}} user today.{{.NL}}Current local server time is: {{.Time}}",
-                "TimeFormat": "Y-m-d H:i:s T"
+                "MOTD": "",
+                "TimeFormat": ""
             },
-            "ServerTTL": "5m",
-            "ID": 69,
-            "ServersPerIP": 15,
+            "ServerTTL": "",
+            "ID": 0,
+            "ServersPerIP": 0,
             "Banned": {
-                "Networks": ["224.0.0.0/4"],
-                "Message": "You've been banned!"
+                "Networks": [],
+                "Message": ""
             }
         },
         "Poll": {
-            "Enabled": true,
-            "Interval": "5m",
-            "KnownMasters": ["master1.starsiegeplayers.com:29000", "master2.starsiegeplayers.com:29000", "master3.starsiegeplayers.com:29000", "starsiege1.no-ip.org:29000", "starsiege.noip.us:29000", "southerjustice.dyndns-server.com:29000", "dustersteve.ddns.net:29000", "starsiege.from-tx.com:29000"]
+            "Enabled": false,
+            "Interval": "",
+            "KnownMasters": []
         },
         "HTTPD": {
-            "Enabled": true,
+            "Enabled": false,
             "Listen": {
                 "IP": "",
                 "Port": ""
             },
             "Admins": {
-                Neo: "akjsldfhkljy7uoi23yhui84oy798$"
             },
             "Secrets": {
-                "Authentication": "VS9KTm4rX3QrPzg8YEZLVjN9QSNcUW8oeT47VSB3cWlicDdTTkNqZUxSJTIgYmYsL0EzN1MzYF8mWUVDbT91VQ",
-                "Refresh": "ZHNta09aYTN8XHVsQU07RiQqYV1VOy46bTx9bU8ifnske1xfWVE9e3JYJEw9KjZGYWtqKz8tZX4sbiAmbyxadQ"
-            }
+                "Authentication": "",
+                "Refresh": ""
+            },
+            "MaxRequestsPerMinute": 0,
         },
         "Advanced": {
             "Verbose": false,
             "Network": {
-                "ConnectionTimeout": "2s",
-                "MaxPacketSize": 512,
-                "MaxBufferSize": 32768,
-                "StunServers": ["stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302"]
+                "ConnectionTimeout": "",
+                "MaxPacketSize": 0,
+                "MaxBufferSize": 0,
+                "StunServers": []
             },
             "Maintenance": {
-                "Interval": "1m"
+                "Interval": ""
             }
         },
     })
 
     const form = writable({
         advanced: false,
+        username: "",
+        password: "",
         masters: "",
         network: "",
         admin: "",
@@ -84,13 +87,13 @@
     })
 
     const adminFormProcess = () => {
-
+        settings.post("/api/v1/admin/serversettings")
     }
 
 </script>
 
-{#if $login.loggedIn}
-    <Login login={login} />
+{#if $login.LoggedIn !== true}
+    <Login login={login} form={login} settings={settings} />
 {:else}
     <div class="admin-panel bg-primary bg-opacity-50 rounded-3 boarder-3 p-5">
         <Header login={login} />

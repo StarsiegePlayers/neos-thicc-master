@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"time"
+
+	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 )
 
 type CacheResponse struct {

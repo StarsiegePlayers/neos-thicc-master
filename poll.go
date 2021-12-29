@@ -12,10 +12,11 @@ import (
 type PollService struct {
 	sync.Mutex
 	*time.Ticker
-	Config         *Configuration
 	Services       *map[ServiceID]Service
-	PollMasterInfo *PollMasterInfo
+	Config         *ConfigurationService
 	MasterService  *MasterService
+	PollMasterInfo *PollMasterInfo
+
 	Service
 	Logger
 }
@@ -33,7 +34,7 @@ func (p *PollService) Init(args map[InitArg]interface{}) (err error) {
 	}
 
 	var ok bool
-	p.Config, ok = args[InitArgConfig].(*Configuration)
+	p.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		return ErrorInvalidArgument
 	}
@@ -48,7 +49,7 @@ func (p *PollService) Init(args map[InitArg]interface{}) (err error) {
 		return ErrorInvalidArgument
 	}
 
-	p.Ticker = time.NewTicker(p.Config.Poll.Interval)
+	p.Ticker = time.NewTicker(p.Config.Values.Poll.Interval.Duration)
 
 	return
 }
@@ -59,8 +60,8 @@ func (p *PollService) Rehash() {
 }
 
 func (p *PollService) Run() {
-	p.Log("will run every %s", p.Config.Poll.Interval.String())
-	p.Log("known masters are %s", p.Config.Poll.KnownMasters)
+	p.Log("will run every %s", p.Config.Values.Poll.Interval.String())
+	p.Log("known masters are %s", p.Config.Values.Poll.KnownMasters)
 	p.query()
 	for range p.C {
 		p.query()
@@ -68,8 +69,8 @@ func (p *PollService) Run() {
 }
 
 func (p *PollService) query() {
-	q := darkstar.NewQuery(p.Config.Advanced.Network.ConnectionTimeout, p.Config.Advanced.Verbose)
-	q.Addresses = p.Config.Poll.KnownMasters
+	q := darkstar.NewQuery(p.Config.Values.Advanced.Network.ConnectionTimeout.Duration, p.Config.Values.Advanced.Verbose)
+	q.Addresses = p.Config.Values.Poll.KnownMasters
 
 	pm := new(PollMasterInfo)
 	pm.Masters, pm.Games, pm.Errors = q.Masters()

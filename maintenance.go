@@ -8,7 +8,7 @@ type MaintenanceService struct {
 	*time.Ticker
 	time.Duration
 	Services *map[ServiceID]Service
-	Config   *Configuration
+	Config   *ConfigurationService
 
 	Service
 	Logger
@@ -25,7 +25,7 @@ func (t *MaintenanceService) Init(args map[InitArg]interface{}) (err error) {
 	}
 
 	var ok bool
-	t.Config, ok = args[InitArgConfig].(*Configuration)
+	t.Config, ok = args[InitArgConfig].(*ConfigurationService)
 	if !ok {
 		t.LogAlert("config %s", ErrorInvalidArgument)
 		return ErrorInvalidArgument
@@ -37,7 +37,7 @@ func (t *MaintenanceService) Init(args map[InitArg]interface{}) (err error) {
 		return ErrorInvalidArgument
 	}
 
-	t.Ticker = time.NewTicker(t.Config.Advanced.Maintenance.Interval)
+	t.Ticker = time.NewTicker(t.Config.Values.Advanced.Maintenance.Interval.Duration)
 
 	return nil
 }
@@ -48,7 +48,7 @@ func (t *MaintenanceService) Rehash() {
 }
 
 func (t *MaintenanceService) Run() {
-	t.Log("will run every %s", t.Config.Advanced.Maintenance.Interval.String())
+	t.Log("will run every %s", t.Config.Values.Advanced.Maintenance.Interval.String())
 	for range t.C {
 		for _, v := range *t.Services {
 			if service, ok := v.(Maintainable); ok {

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-colorable"
@@ -89,4 +91,15 @@ func (c *Logger) ServerAlert(server string, format string, args ...interface{}) 
 	tag := fmt.Sprintf("%s[%s] %s", lpad, au.Index(color, server), au.Red("!"))
 	s := fmt.Sprintf("%44s %s\n", tag, au.Index(color, format))
 	log.Printf(s, args...)
+}
+
+func (c *Logger) NCenter(width int, s string) string {
+	const half, space = 2, "\u0020"
+	var b bytes.Buffer
+	n := (width - utf8.RuneCountInString(s)) / half
+	if n < 0 {
+		n = 0
+	}
+	_, _ = fmt.Fprintf(&b, "%s%s", strings.Repeat(space, n), s)
+	return b.String()
 }

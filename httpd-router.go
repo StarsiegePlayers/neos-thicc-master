@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
 type Router struct {
@@ -13,6 +15,11 @@ type Router struct {
 	emedFS http.FileSystem
 
 	Logger
+}
+
+type HTTPError struct {
+	Error     string
+	ErrorCode int
 }
 
 type RouteLogger struct {
@@ -56,6 +63,17 @@ func (rt *Router) SetFileSystem(fs fs.FS, err error) {
 	rt.emedFS = http.FS(fs)
 }
 
+func (rt *Router) jsonOut(w http.ResponseWriter, arg interface{}) {
+	output, err := json.Marshal(arg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	_, _ = w.Write(output)
+}
+
 func (rt *Router) log(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := RouteLogger{
@@ -90,6 +108,24 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 			rt.serveFile(w, r)
 			return
 		}
+	}
+
+	// if the url does not contain the api path, serve up the index
+	if !strings.HasPrefix(strings.ToLower(r.RequestURI), "/api") {
+		index, err := rt.emedFS.Open("index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		fi, err := index.Stat()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		http.ServeContent(w, r, fi.Name(), fi.ModTime(), index)
+		return
 	}
 
 	// if still can't find something, 404 out

@@ -3,11 +3,22 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/viper"
 	"net"
 	"os"
+	"strings"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/viper"
 )
+
+type ConfigurationService struct {
+	*viper.Viper
+	Values *Configuration
+
+	Logger
+	Service
+}
 
 const (
 	DefaultConfigFileName = "mstrsvr.yaml"
@@ -15,93 +26,127 @@ const (
 	EggURL                = "https://youtu.be/pY725Ya74VU"
 )
 
-func configInit() (config *Configuration) {
-	logger := Logger{
+func (c *ConfigurationService) Init(args map[InitArg]interface{}) error {
+	c.Logger = Logger{
 		Name: "config",
 		ID:   ConfigServiceID,
 	}
-	v := viper.New()
-	v.AddConfigPath(".")
-	v.SetConfigName(EnvPrefix)
 
-	v.SetEnvPrefix(EnvPrefix)
-	v.AllowEmptyEnv(true)
+	c.Viper = viper.New()
 
-	config.SetDefaults(v)
+	c.AddConfigPath(".")
+	c.SetConfigName(EnvPrefix)
 
-	v.OnConfigChange(func(in fsnotify.Event) {
-		logger.Log("configuration change detected, updating...")
-		config = rehashConfig(v, logger)
+	c.SetEnvPrefix(EnvPrefix)
+	c.AllowEmptyEnv(true)
+
+	c.SetDefaults()
+
+	c.OnConfigChange(func(in fsnotify.Event) {
+		c.Log("configuration change detected, updating...")
+		c.Rehash()
 	})
 
-	config = rehashConfig(v, logger)
-	config.serviceRunning = true
+	c.Rehash()
+	c.Values.serviceRunning = true
 
-	loggerInit(config.Log.ConsoleColors)
+	loggerInit(c.Values.Log.ConsoleColors)
 
 	var err error
-	if config.HTTPD.Secrets.Authentication == "" || len(config.HTTPD.Secrets.Authentication) < 64 {
-		logger.LogAlert("invalid http authentication secret detected, generating...")
-		config.HTTPD.Secrets.Authentication, err = GenerateSecureRandomASCIIString(64)
+	if c.Values.HTTPD.Secrets.Authentication == "" || len(c.Values.HTTPD.Secrets.Authentication) < 64 {
+		c.LogAlert("invalid http authentication secret detected, generating...")
+		c.Values.HTTPD.Secrets.Authentication, err = c.GenerateSecureRandomASCIIString(64)
 		if err != nil {
-			logger.LogAlert("error creating http authentication secret [%s]", err)
+			c.LogAlert("error creating http authentication secret [%s]", err)
 		}
 	}
 
-	if config.HTTPD.Secrets.Refresh == "" || len(config.HTTPD.Secrets.Refresh) < 64 {
-		logger.LogAlert("invalid http authentication refresh secret detected, generating...")
-		config.HTTPD.Secrets.Refresh, err = GenerateSecureRandomASCIIString(64)
+	if c.Values.HTTPD.Secrets.Refresh == "" || len(c.Values.HTTPD.Secrets.Refresh) < 64 {
+		c.LogAlert("invalid http authentication refresh secret detected, generating...")
+		c.Values.HTTPD.Secrets.Refresh, err = c.GenerateSecureRandomASCIIString(64)
 		if err != nil {
-			logger.LogAlert("error creating http authentication refresh secret [%s]", err)
+			c.LogAlert("error creating http authentication refresh secret [%s]", err)
 		}
 	}
 
-	v.WatchConfig()
+	c.WatchConfig()
 
-	return config
+	//exit early if we're just processing command line arguments
+	if c.processCommandLine() {
+		os.Exit(0)
+	}
+	return nil
 }
 
-func rehashConfig(v *viper.Viper, component Logger) (config *Configuration) {
-	err := v.ReadInConfig()
+func (c *ConfigurationService) Run() {
+	//noop
+}
+
+func (c *ConfigurationService) Shutdown() {
+	//noop
+}
+
+func (c *ConfigurationService) Rehash() {
+	// load up the config file
+	err := c.ReadInConfig()
 	if _, configFileNotFound := err.(viper.ConfigFileNotFoundError); err != nil && configFileNotFound {
-		component.LogAlert("file not found, creating...")
-		err := v.WriteConfigAs(DefaultConfigFileName)
+		c.LogAlert("file not found, creating...")
+		err := c.WriteConfigAs(DefaultConfigFileName)
 		if err != nil {
-			component.LogAlert("unable to create config! [%s]", err)
+			c.LogAlert("unable to create config! [%s]", err)
 			os.Exit(1)
 		}
 	} else if err != nil {
-		component.LogAlert("error while reading config file [%s]", err)
+		c.LogAlert("error while reading config file [%s]", err)
 	}
 
-	config = new(Configuration)
-	config.Lock()
-	defer config.Unlock()
-	err = v.Unmarshal(&config)
+	// replace the in-memory config with a new one
+	c.Values = new(Configuration)
+	c.Values.Lock()
+	defer c.Values.Unlock()
+	err = c.Unmarshal(&c.Values, viper.DecodeHook(
+		mapstructure.ComposeDecodeHookFunc(
+			StringToCustomDurationHookFunc(),
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.StringToSliceHookFunc(","),
+		),
+	))
 	if err != nil {
-		component.LogAlert("error unmarshalling config [%s]", err)
+		c.LogAlert("error unmarshalling config [%s]", err)
 	}
 
-	config.parsedBannedNets = make([]*net.IPNet, 0)
-	for _, v := range config.Service.Banned.Networks {
-		_, network, err := net.ParseCIDR(v)
+	// normalize all admin-usernames to be lowercase
+	for user, password := range c.Values.HTTPD.Admins {
+		lowerUser := strings.ToLower(user)
+		if user != lowerUser {
+			c.Values.HTTPD.Admins[lowerUser] = password
+			delete(c.Values.HTTPD.Admins, user)
+		}
+	}
+
+	// pre-parse the banned networks
+	c.Values.parsedBannedNets = make([]*net.IPNet, 0)
+	for _, x := range c.Values.Service.Banned.Networks {
+		_, network, err := net.ParseCIDR(x)
 		if err != nil {
-			component.LogAlert("unable to parse BannedNetwork %s, %s", v, err)
+			c.LogAlert("unable to parse BannedNetwork %s, %s", x, err)
 			os.Exit(1)
 		}
-		config.parsedBannedNets = append(config.parsedBannedNets, network)
+		c.Values.parsedBannedNets = append(c.Values.parsedBannedNets, network)
 	}
 
-	config.externalIP = getExternalIP(config.Advanced.Network.StunServers)
+	// cache the external ip
+	c.Values.externalIP = getExternalIP(c.Values.Advanced.Network.StunServers)
 
-	if config.callbackFn != nil {
-		go config.callbackFn()
+	// execute the main rehash callback function
+	if c.Values.callbackFn != nil {
+		go c.Values.callbackFn()
 	}
 
 	return
 }
 
-func GenerateSecureRandomASCIIString(length int) (string, error) {
+func (c *ConfigurationService) GenerateSecureRandomASCIIString(length int) (string, error) {
 	result := make([]byte, length)
 	_, err := rand.Read(result)
 	if err != nil {
