@@ -1,8 +1,13 @@
-package main
+package polling
 
 import (
 	"sync"
 	"time"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/master"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 
 	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
@@ -12,13 +17,14 @@ import (
 type PollService struct {
 	sync.Mutex
 	*time.Ticker
-	Services       *map[ServiceID]Service
-	Config         *ConfigurationService
-	MasterService  *MasterService
+
+	Services       *map[service.ID]service.Interface
+	Config         *config.Service
+	MasterService  *master.Service
 	PollMasterInfo *PollMasterInfo
 
-	Service
-	Logger
+	*log.Log
+	service.Interface
 }
 
 type PollMasterInfo struct {
@@ -27,27 +33,12 @@ type PollMasterInfo struct {
 	Errors  []error
 }
 
-func (p *PollService) Init(args map[InitArg]interface{}) (err error) {
-	p.Logger = Logger{
-		Name: "poll",
-		ID:   PollServiceID,
-	}
+func (p *PollService) Init(services *map[service.ID]service.Interface) (err error) {
 
-	var ok bool
-	p.Config, ok = args[InitArgConfig].(*ConfigurationService)
-	if !ok {
-		return ErrorInvalidArgument
-	}
-
-	p.Services, ok = args[InitArgServices].(*map[ServiceID]Service)
-	if !ok {
-		return ErrorInvalidArgument
-	}
-
-	p.MasterService, ok = (*p.Services)[MasterServiceID].(*MasterService)
-	if !ok {
-		return ErrorInvalidArgument
-	}
+	p.Services = services
+	p.Config = (*p.Services)[service.Config].(*config.Service)
+	p.MasterService = (*p.Services)[service.Master].(*master.Service)
+	p.Log = (*p.Services)[service.Logger].(*log.Service).NewLogger(service.Poll)
 
 	p.Ticker = time.NewTicker(p.Config.Values.Poll.Interval.Duration)
 
@@ -60,9 +51,10 @@ func (p *PollService) Rehash() {
 }
 
 func (p *PollService) Run() {
-	p.Log("will run every %s", p.Config.Values.Poll.Interval.String())
-	p.Log("known masters are %s", p.Config.Values.Poll.KnownMasters)
+	p.Logf("will run every %s", p.Config.Values.Poll.Interval.String())
+	p.Logf("known masters are %s", p.Config.Values.Poll.KnownMasters)
 	p.query()
+
 	for range p.C {
 		p.query()
 	}
@@ -74,7 +66,7 @@ func (p *PollService) query() {
 
 	pm := new(PollMasterInfo)
 	pm.Masters, pm.Games, pm.Errors = q.Masters()
-	p.Log("found %d games on %d masters", len(pm.Games), len(pm.Masters))
+	p.Logf("found %d games on %d masters", len(pm.Games), len(pm.Masters))
 
 	p.Lock()
 	p.PollMasterInfo = pm
@@ -85,5 +77,5 @@ func (p *PollService) query() {
 
 func (p *PollService) Shutdown() {
 	p.Stop()
-	p.Log("shutdown complete")
+	p.Logf("shutdown complete")
 }

@@ -39,20 +39,22 @@
             <input id="service.listen.port" class="form-control" placeholder="29000" bind:value={$settings.Service.Listen.Port}>
         </fieldset>
         <fieldset class="p-2 mt-3 border border-light border-2 rounded-3">
+            <legend class="h5">Customization</legend>
+            <label for="service.hostname" class="form-label text-start">Hostname</label>
+            <input id="service.hostname" class="form-control" placeholder="Welcome to a community run master server!" bind:value={$settings.Service.Hostname} />
+            <label for="service.serverttl" class="form-label text-start">TTL</label>
+            <input id="service.serverttl" class="form-control" placeholder="5m" bind:value={$settings.Service.ServerTTL} />
+            <label for="service.id" class="form-label text-start">ID</label>
+            <input id="service.id" class="form-control" placeholder="69" bind:value={$settings.Service.ID} />
+            <label for="service.serversperip" class="form-label text-start">ServersPerIP</label>
+            <input id="service.serversperip" class="form-control" placeholder="15" bind:value={$settings.Service.ServersPerIP} />
+        </fieldset>
+        <fieldset class="p-2 mt-3 border border-light border-2 rounded-3">
             <legend class="h5">Message Templates</legend>
             <label for="service.templates.motd" class="form-label text-start">MOTD</label>
             <textarea id="service.templates.motd" class="form-control" placeholder="" bind:value={$settings.Service.Templates.MOTD}></textarea>
             <label for="service.templates.timeformat" class="form-label text-start">Time Format</label>
             <textarea id="service.templates.timeformat" class="form-control" placeholder="" bind:value={$settings.Service.Templates.TimeFormat}></textarea>
-        </fieldset>
-        <fieldset class="p-2 mt-3 border border-light border-2 rounded-3">
-            <legend class="h5">Customization</legend>
-            <label for="service.serverttl" class="form-label text-start">TTL</label>
-            <input id="service.serverttl" class="form-control" placeholder="5m" bind:value={$settings.Service.ServerTTL} />
-            <label for="service.id" class="form-label text-start">ID</label>
-            <input id="service.id" class="form-control" placeholder="69" bind:value={$settings.Service.ID} />
-            <label for="service.serversperip" class="form-label text-start">ID</label>
-            <input id="service.serversperip" class="form-control" placeholder="15" bind:value={$settings.Service.ServersPerIP} />
         </fieldset>
         <fieldset class="p-2 mt-3 border border-light border-2 rounded-3">
             <legend class="h5">Banned User Options</legend>

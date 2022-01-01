@@ -1,20 +1,26 @@
-package main
+package httpd
 
 import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
 	"strings"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 )
 
 type Router struct {
 	mux *http.ServeMux
+
 	// routes["route"]["method"]
 	routes map[string]map[string]http.Handler
 
-	emedFS http.FileSystem
+	emedFS    http.FileSystem
+	buildInfo *service.BuildInfo
 
-	Logger
+	*log.Log
 }
 
 type HTTPError struct {
@@ -27,21 +33,20 @@ type RouteLogger struct {
 	Status int
 }
 
-func (r RouteLogger) WriteHeader(status int) {
+func (r *RouteLogger) WriteHeader(status int) {
 	r.Status = status
 	r.ResponseWriter.WriteHeader(status)
 }
 
-func NewHttpRouter() (out *Router) {
+func NewHTTPRouter(log *log.Log, buildinfo *service.BuildInfo) (out *Router) {
 	out = &Router{
-		mux:    http.NewServeMux(),
-		routes: make(map[string]map[string]http.Handler),
-		Logger: Logger{
-			Name: "httpd-router",
-			ID:   HTTPDRouterID,
-		},
+		mux:       http.NewServeMux(),
+		routes:    make(map[string]map[string]http.Handler),
+		Log:       log,
+		buildInfo: buildinfo,
 	}
 	out.mux.HandleFunc("/", out.log(out.router))
+
 	return
 }
 
@@ -53,13 +58,15 @@ func (rt *Router) AddRoute(path string, method string, fn http.Handler) {
 	if _, ok := rt.routes[path]; !ok {
 		rt.routes[path] = make(map[string]http.Handler)
 	}
+
 	rt.routes[path][method] = fn
 }
 
 func (rt *Router) SetFileSystem(fs fs.FS, err error) {
 	if err != nil {
-		rt.LogAlert("error parsing embedded filesystem?")
+		rt.Log.LogAlertf("error parsing embedded filesystem?")
 	}
+
 	rt.emedFS = http.FS(fs)
 }
 
@@ -80,15 +87,15 @@ func (rt *Router) log(fn http.HandlerFunc) http.HandlerFunc {
 			ResponseWriter: w,
 			Status:         http.StatusOK,
 		}
-		fn(logger, r)
-		rt.Log("[%s] %s %s - %d", r.RemoteAddr, r.Method, r.RequestURI, logger.Status)
+		fn(&logger, r)
+		rt.Log.Logf("[%s] %s %s - %d", r.RemoteAddr, r.Method, r.RequestURI, logger.Status)
 	}
 }
 
 func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Server", "CERN/2.15")
-	w.Header().Add("X-DummyThiccMasterVersion", buildVersion)
-	w.Header().Add("X-DummyThiccMeme", EggURL)
+	w.Header().Add("X-DummyThiccMasterVersion", rt.buildInfo.Version)
+	w.Header().Add("X-DummyThiccMeme", config.EggURL)
 
 	// first match on the api overlay
 	if group, ok := rt.routes[r.RequestURI]; ok {
@@ -96,7 +103,9 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 			fn.ServeHTTP(w, r)
 			return
 		}
+
 		rt.errorHandler(http.StatusMethodNotAllowed, w, r)
+
 		return
 	}
 
@@ -105,7 +114,9 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 		x, err := rt.emedFS.Open(r.RequestURI)
 		if err == nil {
 			_ = x.Close()
+
 			rt.serveFile(w, r)
+
 			return
 		}
 	}
@@ -125,15 +136,15 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.ServeContent(w, r, fi.Name(), fi.ModTime(), index)
+
 		return
 	}
 
 	// if still can't find something, 404 out
 	rt.errorHandler(http.StatusNotFound, w, r)
-	return
 }
 
-func (rt *Router) errorHandler(code int, w http.ResponseWriter, r *http.Request) {
+func (rt *Router) errorHandler(code int, w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(code)
 	_, _ = w.Write([]byte(http.StatusText(code)))
 }

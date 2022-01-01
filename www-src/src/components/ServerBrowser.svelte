@@ -23,25 +23,6 @@
     export const ServerInfo = info;
 </script>
 
-<style>
-    .row {
-        margin-bottom: 1.5rem;
-    }
-
-    .table>caption {
-        color: white;
-        text-align: center;
-    }
-
-    .table>:not(caption)>*>span {
-        padding: 0 0.1rem !important;
-    }
-
-    .table>:not(caption)>*>* {
-        background-color: transparent;
-    }
-</style>
-
 {#if $info.Masters.length <= 0 && $info.Games.length <= 0 && $info.Errors.Length <= 0}
     <div class="row">
         <h2>Server Browser Unavailable</h2>
@@ -121,3 +102,28 @@
         </table>
     </div>
 {/if}
+
+<style>
+    .row {
+        margin-bottom: 1.5rem;
+    }
+
+    .table>caption {
+        color: white;
+        text-align: center;
+    }
+
+    .table>:not(caption)>*>span {
+        padding: 0 0.1rem !important;
+    }
+
+    .table>:not(caption)>*>* {
+        background-color: transparent;
+        box-shadow: none;
+    }
+
+    .table>:not(:first-child) {
+        border: inherit;
+    }
+
+</style>

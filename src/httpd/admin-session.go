@@ -1,4 +1,4 @@
-package main
+package httpd
 
 import (
 	"fmt"
@@ -34,15 +34,16 @@ type HTTPAdminTokenData struct {
 	Refresh *HTTPAdminJWTToken
 }
 
-func (s *HTTPDService) adminLoginTokenExtract(r *http.Request) string {
+func (s *Service) adminLoginTokenExtract(r *http.Request) string {
 	cookie, err := r.Cookie("token")
 	if err != nil {
 		return ""
 	}
+
 	return cookie.Value
 }
 
-func (s *HTTPDService) adminLoginTokenVerify(r *http.Request) (*jwt.Token, error) {
+func (s *Service) adminLoginTokenVerify(r *http.Request) (*jwt.Token, error) {
 	tokenString := s.adminLoginTokenExtract(r)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -50,40 +51,48 @@ func (s *HTTPDService) adminLoginTokenVerify(r *http.Request) (*jwt.Token, error
 		}
 		return []byte(s.Config.Values.HTTPD.Secrets.Authentication), nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
+
 	return token, nil
 }
 
-func (s *HTTPDService) adminIsTokenValid(r *http.Request) error {
+func (s *Service) adminIsTokenValid(r *http.Request) error {
 	token, err := s.adminLoginTokenVerify(r)
 	if err != nil {
 		return err
 	}
-	if _, ok := token.Claims.(jwt.Claims); !ok || !token.Valid {
+
+	if !token.Valid {
 		return err
 	}
+
 	return nil
 }
 
-func (s *HTTPDService) adminExtractTokenData(r *http.Request) (string, error) {
+func (s *Service) adminExtractTokenData(r *http.Request) (string, error) {
 	token, err := s.adminLoginTokenVerify(r)
 	if err != nil {
 		return "", err
 	}
+
 	claims, ok := token.Claims.(jwt.MapClaims)
+
 	if ok && token.Valid {
 		uid, ok := claims["session"].(string)
 		if !ok {
 			return "", err
 		}
+
 		return uid, nil
 	}
+
 	return "", err
 }
 
-func (s *HTTPDService) adminCreateToken() (*HTTPAdminTokenData, error) {
+func (s *Service) adminCreateToken() (*HTTPAdminTokenData, error) {
 	td := &HTTPAdminTokenData{
 		Access: &HTTPAdminJWTToken{
 			SessionID: uuid.New().String(),
@@ -91,14 +100,16 @@ func (s *HTTPDService) adminCreateToken() (*HTTPAdminTokenData, error) {
 		},
 		Refresh: &HTTPAdminJWTToken{
 			SessionID: uuid.New().String(),
-			Expires:   time.Now().Add(time.Hour * 24),
+			Expires:   time.Now().Add(time.Hour * 24), //nolint:gomnd
 		},
 	}
 
 	var err error
+
 	accessClaims := jwt.MapClaims{}
 	accessClaims["session"] = td.Access.SessionID
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+
 	td.Access.Token, err = accessToken.SignedString([]byte(s.Config.Values.HTTPD.Secrets.Authentication))
 	if err != nil {
 		return nil, err
@@ -107,6 +118,7 @@ func (s *HTTPDService) adminCreateToken() (*HTTPAdminTokenData, error) {
 	refreshClaims := jwt.MapClaims{}
 	refreshClaims["session"] = td.Refresh.SessionID
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+
 	td.Refresh.Token, err = refreshToken.SignedString([]byte(s.Config.Values.HTTPD.Secrets.Refresh))
 	if err != nil {
 		return nil, err
@@ -115,8 +127,8 @@ func (s *HTTPDService) adminCreateToken() (*HTTPAdminTokenData, error) {
 	return td, nil
 }
 
-func (s *HTTPDService) adminCreateSession(username string, td *HTTPAdminTokenData) error {
-	cache := s.cache[HTTPCacheAdminSessions].(map[string]*HTTPAdminSession)
+func (s *Service) adminCreateSession(username string, td *HTTPAdminTokenData) error {
+	cache := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
 	accessSesh := &HTTPAdminSession{
 		UUID:      td.Access.SessionID,
 		Username:  username,

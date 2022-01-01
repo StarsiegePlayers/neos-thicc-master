@@ -1,9 +1,11 @@
-package main
+package httpd
 
 import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 
 	"github.com/aykevl/pwhash"
 )
@@ -19,15 +21,15 @@ type HTTPAdminLogin struct {
 }
 
 type HTTPAdminSettings struct {
-	Configuration
+	config.Configuration
 
 	HTTPError
 }
 
-func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Service) routeGetAdminLogin(w http.ResponseWriter, r *http.Request) {
 	errorUnauthorized := &HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Now(),
 
 		HTTPError: HTTPError{
@@ -36,10 +38,11 @@ func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.R
 		},
 	}
 
-	cache, ok := s.cache[HTTPCacheAdminSessions].(map[string]*HTTPAdminSession)
+	cache, ok := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
 	if !ok {
-		s.LogAlert("error retrieving admin session cache")
+		s.Logs.HTTPD.LogAlertf("error retrieving admin session cache")
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
@@ -49,6 +52,7 @@ func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.R
 	}
 
 	var session *HTTPAdminSession
+
 	if uid != "" {
 		if sesh, ok := cache[uid]; ok {
 			if sesh.LoginTime.Add(time.Hour).After(time.Now()) {
@@ -66,6 +70,7 @@ func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.R
 			delete(cache, uid)
 			w.Header().Add("Location", "/admin")
 			s.router.jsonOut(w, errorUnauthorized)
+
 			return
 		}
 
@@ -73,25 +78,25 @@ func (s *HTTPDService) routeGetAdminLoginStatus(w http.ResponseWriter, r *http.R
 		s.router.jsonOut(w, HTTPAdminLogin{
 			LoggedIn: true,
 			Username: session.Username,
-			Version:  buildVersion,
+			Version:  s.Config.BuildInfo.Version,
 			Expiry:   session.LoginTime,
 		})
+
 		return
 	}
 
 	// user is not logged in
 	s.router.jsonOut(w, HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Time{},
 	})
-	return
 }
 
-func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Request) {
+func (s *Service) routePostAdminLogin(w http.ResponseWriter, r *http.Request) {
 	errorInvalidUsernameOrPassword := &HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Now(),
 		HTTPError: HTTPError{
 			Error:     "invalid username or password",
@@ -101,7 +106,7 @@ func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Reques
 
 	errorInvalidEntry := &HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Now(),
 
 		HTTPError: HTTPError{
@@ -112,7 +117,7 @@ func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Reques
 
 	errorLoggingIn := &HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Now(),
 		HTTPError: HTTPError{
 			Error:     "error logging in",
@@ -158,7 +163,7 @@ func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Reques
 	cookie := &http.Cookie{
 		Name:     "token",
 		Value:    td.Access.Token,
-		Expires:  time.Now().Add(time.Hour * 1),
+		Expires:  time.Now().Add(time.Hour),
 		HttpOnly: true,
 	}
 	http.SetCookie(w, cookie)
@@ -166,7 +171,7 @@ func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Reques
 	cookie = &http.Cookie{
 		Name:     "refresh",
 		Value:    td.Refresh.Token,
-		Expires:  time.Now().Add(time.Hour * 24),
+		Expires:  time.Now().Add(time.Hour * 24), //nolint:gomnd
 		HttpOnly: true,
 	}
 	http.SetCookie(w, cookie)
@@ -174,27 +179,30 @@ func (s *HTTPDService) routePostAdminLogin(w http.ResponseWriter, r *http.Reques
 	output := &HTTPAdminLogin{
 		LoggedIn: true,
 		Username: form.Username,
-		Version:  buildVersion,
-		Expiry:   time.Now().Add(time.Hour * 1),
+		Version:  s.Config.BuildInfo.Version,
+		Expiry:   time.Now().Add(time.Hour),
 	}
 	s.router.jsonOut(w, output)
 }
 
-func (s *HTTPDService) routeAdminLogout(w http.ResponseWriter, r *http.Request) {
-	cache, ok := s.cache[HTTPCacheAdminSessions].(map[string]*HTTPAdminSession)
+func (s *Service) routeDeleteAdminLogout(w http.ResponseWriter, r *http.Request) {
+	cache, ok := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
 	if !ok {
-		s.LogAlert("error retrieving admin session cache")
+		s.Logs.HTTPD.LogAlertf("error retrieving admin session cache")
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
 	uid, err := s.adminExtractTokenData(r)
 	if err != nil {
 		uid = ""
-		s.LogAlert("error: %s", err)
+
+		s.Logs.HTTPD.LogAlertf("error: %s", err)
 	}
 
 	var session *HTTPAdminSession
+
 	if uid != "" {
 		if sesh, ok := cache[uid]; ok {
 			if sesh.LoginTime.Add(time.Hour).After(time.Now()) {
@@ -203,6 +211,7 @@ func (s *HTTPDService) routeAdminLogout(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 	}
+
 	if session != nil {
 		for k, v := range cache {
 			if v.Username == session.Username {
@@ -212,15 +221,16 @@ func (s *HTTPDService) routeAdminLogout(w http.ResponseWriter, r *http.Request) 
 
 		s.router.jsonOut(w, HTTPAdminLogin{
 			LoggedIn: false,
-			Version:  buildVersion,
+			Version:  s.Config.BuildInfo.Version,
 			Expiry:   time.Time{},
 		})
+
 		return
 	}
 
 	s.router.jsonOut(w, HTTPAdminLogin{
 		LoggedIn: false,
-		Version:  buildVersion,
+		Version:  s.Config.BuildInfo.Version,
 		Expiry:   time.Now(),
 
 		HTTPError: HTTPError{
@@ -228,31 +238,37 @@ func (s *HTTPDService) routeAdminLogout(w http.ResponseWriter, r *http.Request) 
 			ErrorCode: http.StatusUnprocessableEntity,
 		},
 	})
-
 }
 
-func (s *HTTPDService) routePutAdminServerSettings(w http.ResponseWriter, r *http.Request) {
+func (s *Service) routeGetAdminServerSettings(w http.ResponseWriter, _ *http.Request) {
+	s.router.jsonOut(w, s.Config.Values)
+}
+
+func (s *Service) routePostAdminServerSettings(w http.ResponseWriter, r *http.Request) {
 	decode := json.NewDecoder(r.Body)
 	form := &HTTPAdminSettings{}
 	err := decode.Decode(form)
 
 	if err != nil {
-		s.router.jsonOut(w, HTTPAdminSettings{
-			HTTPError: HTTPError{
-				Error:     "invalid JSON provided",
-				ErrorCode: http.StatusUnprocessableEntity,
-			},
+		s.router.jsonOut(w, HTTPError{
+			Error:     "invalid JSON provided",
+			ErrorCode: http.StatusUnprocessableEntity,
 		})
+
 		return
 	}
 
-	data, err := json.Marshal(form)
+	s.Config.Values = &form.Configuration
+	err = s.Config.Write()
 
-	s.LogAlert("%s %s", string(data), err)
+	if err != nil {
+		form.Error = "error while writing config file to disk"
+		form.ErrorCode = 1001
 
-}
+		s.Logs.HTTPD.LogAlertf("error while writing config file to disk %s", err)
+	}
 
-func (s *HTTPDService) routeGetAdminServerSettings(w http.ResponseWriter, r *http.Request) {
-	s.router.jsonOut(w, s.Config.Values)
-	return
+	go s.Config.Rehash()
+
+	s.router.jsonOut(w, form)
 }
