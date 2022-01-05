@@ -47,7 +47,7 @@
                     <td>{master.Address}</td>
                     <td>{master.CommonName}</td>
                     <td>{master.MOTD}</td>
-                    <td>{master.ServerCount}</td>
+                    <td>{Object.keys(master.Servers).length}</td>
                     <td>{Math.floor(master.Ping / 1000000)} ms</td>
                 </tr>
             {/each}
@@ -125,5 +125,4 @@
     .table>:not(:first-child) {
         border: inherit;
     }
-
 </style>

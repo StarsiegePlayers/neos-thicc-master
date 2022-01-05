@@ -36,7 +36,7 @@ func (t *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	t.Services = services
 	t.Config = (*t.Services)[service.Config].(*config.Service)
 	t.MasterService = (*t.Services)[service.Master].(*master.Service)
-	t.Log = (*t.Services)[service.Logger].(*log.Service).NewLogger(service.Template)
+	t.Log = (*t.Services)[service.Log].(*log.Service).NewLogger(service.Template)
 	t.Rehash()
 
 	return

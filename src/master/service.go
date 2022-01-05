@@ -75,10 +75,10 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.TemplateService = (*s.Services)[service.Template]
 	s.STUNService = (*s.Services)[service.STUN]
 
-	s.Logs.Master = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.Master)
-	s.Logs.Heartbeat = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.HeartbeatLog)
-	s.Logs.Registration = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.ServerRegistrationLog)
-	s.Logs.Banned = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.BannedTrafficLog)
+	s.Logs.Master = (*s.Services)[service.Log].(*log.Service).NewLogger(service.Master)
+	s.Logs.Heartbeat = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HeartbeatLog)
+	s.Logs.Registration = (*s.Services)[service.Log].(*log.Service).NewLogger(service.ServerRegistrationLog)
+	s.Logs.Banned = (*s.Services)[service.Log].(*log.Service).NewLogger(service.BannedTrafficLog)
 
 	s.ServerList.Init(s.STUNService)
 

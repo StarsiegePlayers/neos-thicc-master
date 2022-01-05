@@ -22,7 +22,7 @@ type Service struct {
 func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.Services = services
 	s.Config = (*s.Services)[service.Config].(*config.Service)
-	s.Log = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.Maintenance)
+	s.Log = (*s.Services)[service.Log].(*log.Service).NewLogger(service.Maintenance)
 
 	s.Ticker = time.NewTicker(s.Config.Values.Advanced.Maintenance.Interval.Duration)
 

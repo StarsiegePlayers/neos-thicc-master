@@ -8,8 +8,8 @@
     import Login from "../components/admin/AdminLogin.svelte"
     import Header from "../components/admin/AdminHeader.svelte"
     import ServiceSettings from "../components/admin/ServiceSettings.svelte";
-    import LoggingSettings from "../components/admin/LoggingSettings.svelte";
-    import PollingSettings from "../components/admin/PollingSettings.svelte";
+    import LogSettings from "../components/admin/LogSettings.svelte";
+    import PollSettings from "../components/admin/PollSettings.svelte";
     import HTTPDSettings from "../components/admin/HTTPDSettings.svelte";
     import AdvancedSettings from "../components/admin/AdvancedSettings.svelte";
     import HeaderMessage from "../components/admin/HeaderMessage.svelte";
@@ -78,6 +78,7 @@
                 "Interval": ""
             }
         },
+        "LogList":{},
         "Error": "",
         "ErrorCode": 0,
     })
@@ -155,8 +156,8 @@
         {/if}
         <form on:submit|preventDefault={adminFormProcess}>
             <ServiceSettings settings={settings} form={form} />
-            <LoggingSettings settings={settings} form={form} />
-            <PollingSettings settings={settings} form={form} />
+            <LogSettings settings={settings} form={form} />
+            <PollSettings settings={settings} form={form} />
             <HTTPDSettings settings={settings} form={form} />
             <AdvancedSettings settings={settings} form={form} />
             <input class="btn-lg btn-success" type="submit" value="Save Changes" disabled='{submitDisabled}'>

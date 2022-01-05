@@ -48,8 +48,8 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.MasterService = (*s.Services)[service.Master].(*master.Service)
 	s.PollService, _ = (*s.Services)[service.Poll].(*polling.PollService)
 	s.STUNService = (*s.Services)[service.STUN]
-	s.Logs.HTTPD = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.HTTPDRouter)
-	s.Logs.Router = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.HTTPDRouter)
+	s.Logs.HTTPD = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
+	s.Logs.Router = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
 
 	if s.router == nil {
 		s.router = NewHTTPRouter(s.Logs.Router, s.Config.BuildInfo)

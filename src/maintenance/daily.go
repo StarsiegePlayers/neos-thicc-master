@@ -22,7 +22,7 @@ type DailyService struct {
 func (s *DailyService) Init(services *map[service.ID]service.Interface) (err error) {
 	s.Services = services
 	s.Config = (*s.Services)[service.Config].(*config.Service)
-	s.Log = (*s.Services)[service.Logger].(*log.Service).NewLogger(service.DailyMaintenance)
+	s.Log = (*s.Services)[service.Log].(*log.Service).NewLogger(service.DailyMaintenance)
 
 	s.update()
 

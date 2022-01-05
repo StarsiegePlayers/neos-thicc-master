@@ -41,7 +41,7 @@ func (s *Server) Init(*map[service.ID]service.Interface) error {
 
 	loggerService := new(log.Service)
 	_ = loggerService.Init(&s.Services)
-	s.Services[service.Logger] = loggerService
+	s.Services[service.Log] = loggerService
 
 	configService := new(config.Service)
 	_ = configService.Init(&s.Services)

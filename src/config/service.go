@@ -38,7 +38,7 @@ const (
 )
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
-	s.logService = (*services)[service.Logger].(*log.Service)
+	s.logService = (*services)[service.Log].(*log.Service)
 	s.Log = s.logService.NewLogger(service.Config)
 
 	s.viper = viper.New()

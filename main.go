@@ -55,7 +55,7 @@ func main() {
 	}
 
 	// create our log instance and send our session information
-	mainLog := server.Services[service.Logger].(*log.Service).NewLogger(service.Main)
+	mainLog := server.Services[service.Log].(*log.Service).NewLogger(service.Main)
 	showHeader(mainLog)
 
 	// setup kill / rehash hooks

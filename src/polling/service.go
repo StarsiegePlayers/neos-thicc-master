@@ -38,7 +38,7 @@ func (p *PollService) Init(services *map[service.ID]service.Interface) (err erro
 	p.Services = services
 	p.Config = (*p.Services)[service.Config].(*config.Service)
 	p.MasterService = (*p.Services)[service.Master].(*master.Service)
-	p.Log = (*p.Services)[service.Logger].(*log.Service).NewLogger(service.Poll)
+	p.Log = (*p.Services)[service.Log].(*log.Service).NewLogger(service.Poll)
 
 	p.Ticker = time.NewTicker(p.Config.Values.Poll.Interval.Duration)
 

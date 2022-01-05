@@ -19,7 +19,7 @@ type Service struct {
 }
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
-	s.Log = (*services)[service.Logger].(*log.Service).NewLogger(service.STUN)
+	s.Log = (*services)[service.Log].(*log.Service).NewLogger(service.STUN)
 	s.configService = (*services)[service.Config].(*config.Service)
 	s.Rehash()
 

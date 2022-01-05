@@ -38,7 +38,7 @@ func (s *Service) Init(*map[service.ID]service.Interface) error {
 	s.componentColors[service.Shutdown] = aurora.MagentaFg
 
 	s.componentColors[service.Config] = aurora.BrightFg | aurora.YellowFg
-	s.componentColors[service.Logger] = aurora.BrightFg | aurora.YellowFg
+	s.componentColors[service.Log] = aurora.BrightFg | aurora.YellowFg
 
 	s.componentColors[service.Master] = aurora.BlueFg
 	s.componentColors[service.Poll] = aurora.YellowFg
