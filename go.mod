@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/StarsiegePlayers/darkstar-query-go/v2 v2.0.2
+	github.com/StarsiegePlayers/darkstar-query-go/v2 v2.1.4
 	github.com/aykevl/pwhash v0.0.0-20190314135513-09cf1e69944b
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang-jwt/jwt/v4 v4.2.0
