@@ -20,8 +20,8 @@ type Service struct {
 	Values                  *Configuration
 	RehashFn                func()
 	UpdateRunningServicesFn func()
-	ParsedBannedNets        []*net.IPNet
 	BuildInfo               *service.BuildInfo
+	ParsedBannedNets        []*net.IPNet
 
 	logService *log.Service
 	viper      *viper.Viper
@@ -109,7 +109,9 @@ func (s *Service) Get() (out string) {
 
 func (s *Service) Rehash() {
 	err := s.viper.ReadInConfig()
-	if _, configFileNotFound := err.(viper.ConfigFileNotFoundError); err != nil && configFileNotFound {
+
+	cfgFileNotFoundErr := viper.ConfigFileNotFoundError{}
+	if ok := errors.As(err, &cfgFileNotFoundErr); ok {
 		s.LogAlertf("file not found, creating...")
 		err := s.viper.WriteConfigAs(DefaultConfigFileName)
 

@@ -8,16 +8,16 @@ func (m IDs) Len() int           { return len(m) }
 func (m IDs) Less(i, j int) bool { return m[i] < m[j] }
 func (m IDs) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
-type serviceInfo struct {
+type Info struct {
 	ID
-	tag         string
-	description string
+	Tag         string
+	Description string
 }
 
 const (
 	Default = ID(iota)
 	Main
-	Logger
+	Log
 	Startup
 	Shutdown
 	Rehash
@@ -36,10 +36,10 @@ const (
 )
 
 var (
-	List = map[ID]serviceInfo{
+	List = map[ID]Info{
 		Default:               {Default, "default", "Default Service"},
 		Main:                  {Main, "main", "Main Application"},
-		Logger:                {Logger, "logger", "Logging Service"},
+		Log:                   {Log, "logger", "Logging Service"},
 		Startup:               {Startup, "startup", "Server Startup"},
 		Shutdown:              {Shutdown, "shutdown", "Server Shutdown"},
 		Rehash:                {Rehash, "rehash", "Rehashing Messages"},
@@ -57,12 +57,12 @@ var (
 		BannedTrafficLog:      {BannedTrafficLog, "banned", "Banned Client/Server traffic"},
 	}
 
-	ListByTag = map[string]serviceInfo{}
+	ListByTag = map[string]Info{}
 )
 
 func init() {
 	for _, v := range List {
-		ListByTag[v.tag] = v
+		ListByTag[v.Tag] = v
 	}
 }
 
@@ -78,17 +78,17 @@ func TagToID(tagIn string) ID {
 func (s ID) String() string {
 	e, ok := List[s]
 	if !ok {
-		return List[Default].tag
+		return List[Default].Tag
 	}
 
-	return e.tag
+	return e.Tag
 }
 
 func (s ID) Description() string {
 	e, ok := List[s]
 	if !ok {
-		return List[Default].description
+		return List[Default].Description
 	}
 
-	return e.description
+	return e.Description
 }
