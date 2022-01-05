@@ -1,10 +1,9 @@
 package httpd
 
 const (
-	Multiplayer = HTTPCacheID(iota)
-	LocalMultiplayer
-	AdminSessions
-	Throttle
+	cacheMultiplayer = HTTPCacheID(iota)
+	cacheAdminSessions
+	cacheThrottle
 )
 
 type HTTPCacheID int

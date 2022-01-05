@@ -38,7 +38,7 @@ func (s *Service) routeGetAdminLogin(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	cache, ok := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
+	cache, ok := s.cache[cacheAdminSessions].(map[string]*HTTPAdminSession)
 	if !ok {
 		s.Logs.HTTPD.LogAlertf("error retrieving admin session cache")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -186,7 +186,7 @@ func (s *Service) routePostAdminLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) routeDeleteAdminLogout(w http.ResponseWriter, r *http.Request) {
-	cache, ok := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
+	cache, ok := s.cache[cacheAdminSessions].(map[string]*HTTPAdminSession)
 	if !ok {
 		s.Logs.HTTPD.LogAlertf("error retrieving admin session cache")
 		w.WriteHeader(http.StatusInternalServerError)

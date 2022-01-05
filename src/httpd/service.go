@@ -2,6 +2,7 @@ package httpd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -58,8 +59,9 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.registerRoutes()
 
 	s.cache = make(map[HTTPCacheID]interface{})
-	s.cache[AdminSessions] = make(map[string]*HTTPAdminSession)
-	s.cache[Throttle] = make(map[string]int)
+	s.cache[cacheAdminSessions] = make(map[string]*HTTPAdminSession)
+	s.cache[cacheThrottle] = make(map[string]int)
+	s.cache[cacheMultiplayer] = make(map[string]*CacheResponse)
 
 	s.srv = s.newServer()
 
@@ -102,7 +104,7 @@ func (s *Service) Run() {
 
 	s.Logs.HTTPD.Logf("now listening on http://%s/ | http://%s/", externalIPPort, localIPPort)
 
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		s.Logs.HTTPD.LogAlertf("error during listen %s", err)
 	}
 }

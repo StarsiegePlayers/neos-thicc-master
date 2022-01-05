@@ -22,7 +22,7 @@ func (s *Service) middlewareAuth(next http.HandlerFunc) http.Handler {
 
 func (s *Service) middlewareThrottle(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		throttle := s.cache[Throttle].(map[string]int)
+		throttle := s.cache[cacheThrottle].(map[string]int)
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		if throttle[host] > s.Config.Values.HTTPD.MaxRequestsPerMinute {
 			s.router.jsonOut(w, HTTPError{

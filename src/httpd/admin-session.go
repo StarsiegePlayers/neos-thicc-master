@@ -128,7 +128,7 @@ func (s *Service) adminCreateToken() (*HTTPAdminTokenData, error) {
 }
 
 func (s *Service) adminCreateSession(username string, td *HTTPAdminTokenData) error {
-	cache := s.cache[AdminSessions].(map[string]*HTTPAdminSession)
+	cache := s.cache[cacheAdminSessions].(map[string]*HTTPAdminSession)
 	accessSesh := &HTTPAdminSession{
 		UUID:      td.Access.SessionID,
 		Username:  username,
