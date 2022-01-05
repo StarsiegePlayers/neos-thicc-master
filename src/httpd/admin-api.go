@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 
 	"github.com/aykevl/pwhash"
 )
@@ -21,8 +22,8 @@ type HTTPAdminLogin struct {
 }
 
 type HTTPAdminSettings struct {
-	config.Configuration
-
+	*config.Configuration
+	LogList map[service.ID]service.Info
 	HTTPError
 }
 
@@ -241,7 +242,11 @@ func (s *Service) routeDeleteAdminLogout(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Service) routeGetAdminServerSettings(w http.ResponseWriter, _ *http.Request) {
-	s.router.jsonOut(w, s.Config.Values)
+	s.router.jsonOut(w, HTTPAdminSettings{
+		Configuration: s.Config.Values,
+		LogList:       service.List,
+		HTTPError:     HTTPError{},
+	})
 }
 
 func (s *Service) routePostAdminServerSettings(w http.ResponseWriter, r *http.Request) {
@@ -258,7 +263,7 @@ func (s *Service) routePostAdminServerSettings(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	s.Config.Values = &form.Configuration
+	s.Config.Values = form.Configuration
 	err = s.Config.Write()
 
 	if err != nil {
