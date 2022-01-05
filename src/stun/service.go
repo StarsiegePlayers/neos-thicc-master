@@ -1,6 +1,9 @@
 package stun
 
 import (
+	"bytes"
+	"net"
+
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
@@ -13,6 +16,8 @@ type Service struct {
 	configService *config.Service
 	stunServers   []string
 	cachedOutput  string
+
+	LocalAddresses []*net.IPNet
 
 	*log.Log
 	service.Interface
@@ -28,6 +33,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) error {
 
 func (s *Service) Rehash() {
 	s.stunServers = s.configService.Values.Advanced.Network.StunServers
+	s.LocalAddresses = s.generateUniqueLocalAddresses()
 	s.cachedOutput = ""
 }
 
@@ -77,4 +83,49 @@ func (s *Service) Get() string {
 	}
 
 	return s.cachedOutput
+}
+
+func (s *Service) generateUniqueLocalAddresses() (output []*net.IPNet) {
+	addressList := make([]*net.IPNet, 0)
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return
+	}
+
+	for _, i := range ifaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for k := range addrs {
+			if addrs[k].(*net.IPNet).IP.To4() != nil {
+				addressList = append(addressList, addrs[k].(*net.IPNet))
+			}
+		}
+	}
+
+	output = make([]*net.IPNet, 0)
+
+	for k, v := range addressList {
+		matchFound := false
+
+		for k2, v2 := range addressList {
+			if k == k2 || k < k2 {
+				continue
+			}
+
+			matchFound = bytes.Equal(v.Mask, v2.Mask) && v.Contains(v2.IP) && v2.Contains(v.IP)
+			if matchFound {
+				break
+			}
+		}
+
+		if !matchFound {
+			output = append(output, v)
+		}
+	}
+
+	return
 }
