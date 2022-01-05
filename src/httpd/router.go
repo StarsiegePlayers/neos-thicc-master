@@ -17,7 +17,7 @@ type Router struct {
 	// routes["route"]["method"]
 	routes map[string]map[string]http.Handler
 
-	emedFS    http.FileSystem
+	embedFS   http.FileSystem
 	buildInfo *service.BuildInfo
 
 	*log.Log
@@ -67,7 +67,7 @@ func (rt *Router) SetFileSystem(fs fs.FS, err error) {
 		rt.Log.LogAlertf("error parsing embedded filesystem?")
 	}
 
-	rt.emedFS = http.FS(fs)
+	rt.embedFS = http.FS(fs)
 }
 
 func (rt *Router) jsonOut(w http.ResponseWriter, arg interface{}) {
@@ -111,7 +111,7 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 
 	// then match on the emedded filesystem
 	if r.Method == http.MethodGet {
-		x, err := rt.emedFS.Open(r.RequestURI)
+		x, err := rt.embedFS.Open(r.RequestURI)
 		if err == nil {
 			_ = x.Close()
 
@@ -123,7 +123,7 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 
 	// if the url does not contain the api path, serve up the index
 	if !strings.HasPrefix(strings.ToLower(r.RequestURI), "/api") {
-		index, err := rt.emedFS.Open("index.html")
+		index, err := rt.embedFS.Open("index.html")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -150,5 +150,5 @@ func (rt *Router) errorHandler(code int, w http.ResponseWriter, _ *http.Request)
 }
 
 func (rt *Router) serveFile(w http.ResponseWriter, r *http.Request) {
-	http.FileServer(rt.emedFS).ServeHTTP(w, r)
+	http.FileServer(rt.embedFS).ServeHTTP(w, r)
 }
