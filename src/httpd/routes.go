@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 )
 
 const HTTPStatusEnhanceYourCalm = 420
@@ -23,23 +23,33 @@ func (s *Service) registerRoutes() {
 }
 
 func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Request) {
-	localCacheData, _ := s.cache[LocalMultiplayer].(*CacheResponse)
+	cacheData := s.cache[cacheMultiplayer].(map[string]*CacheResponse)
 
-	cacheData, ok := s.cache[Multiplayer].(*CacheResponse)
+	data, ok := cacheData[""]
 	if !ok {
 		// if we don't have something in the cache, populate it.
-		cacheData, localCacheData = s.maintenanceMultiplayerServersCache()
+		data = s.maintenanceMultiplayerServersCache()
+	}
+
+	remoteIPString, _, err := net.SplitHostPort(r.RemoteAddr)
+
+	// skip if STUN service isn't running
+	if s.STUNService != nil && err == nil {
+		remoteIP := net.ParseIP(remoteIPString)
+		for _, v := range s.STUNService.(*stun.Service).LocalAddresses {
+			if v.Contains(remoteIP) {
+				if d2, ok := cacheData[v.String()]; ok {
+					data = d2
+					break
+				}
+			}
+		}
 	}
 
 	w.Header().Add("Content-Type", "application/json")
-	w.Header().Add("Last-Modified", cacheData.Time.Format(time.RFC1123))
+	w.Header().Add("Last-Modified", data.Time.Format(time.RFC1123))
 
-	if host, _, _ := net.SplitHostPort(r.RemoteAddr); host == service.LocalhostAddress {
-		_, _ = w.Write(localCacheData.Response)
-		return
-	}
-
-	_, _ = w.Write(cacheData.Response)
+	_, _ = w.Write(data.Response)
 }
 
 func (s *Service) routeGetYeeted(w http.ResponseWriter, _ *http.Request) {
