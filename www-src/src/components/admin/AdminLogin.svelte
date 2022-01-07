@@ -17,13 +17,13 @@
                         .then(() => {
                             submitDisabled = $form.modal.processing = false
                         })
+                    return
                 }
+                submitDisabled = $form.modal.processing = false
             })
         $form.password = ""
     }
-
 </script>
-
 
 <form on:submit|preventDefault={loginProcess}>
     <img class="mb-4" src="/static/img/leftlogo.png" alt="">

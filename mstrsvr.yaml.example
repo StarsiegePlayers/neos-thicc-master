@@ -10,16 +10,25 @@ log:
     # should we display each server with a unique color based on ip address and port? [default: true]
     consoleColors: true
 
-    # what components should we log [default: *]
+    # what components should we log
+    # [default: default, logger, startup, shutdown, rehash, config, stun-client, master,
+    #           poll, maintenance, daily-maintenance, httpd, httpd-router, heartbeat, banned]
     components:
+        - "default"
+        - "logger"
         - "startup"
         - "shutdown"
-        - "heartbeat"
-        - "new-server"
+        - "rehash"
+        - "config"
+        - "stun-client"
+        - "master"
+        - "poll"
         - "maintenance"
         - "daily-maintenance"
         - "httpd"
-        - "poll"
+        - "httpd-router"
+        - "heartbeat"
+        - "banned"
 
     # path to a log file for this server, leave empty to disable [default: empty]
     file: 'mstrsvr.log'
@@ -72,7 +81,7 @@ service:
 poll:
 
     # shall we poll other masters for servers?
-    enabled: false
+    enabled: true
 
     # how often to poll for servers [default: 5 minutes]
     interval: 5m

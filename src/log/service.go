@@ -19,6 +19,7 @@ type Service struct {
 	logables        sync.Map
 	logFileName     string
 	logFile         *log.Logger
+	logHandle       *os.File
 
 	service.Interface
 }
@@ -84,22 +85,16 @@ func (s *Service) SetLogables(components []string) {
 func (s *Service) SetLogFile(logFileName string) (err error) {
 	s.Mutex.Lock()
 
-	if logFileName != s.logFileName {
-		s.Shutdown()
-
-		if logFileName != "" {
-			var file *os.File
-
-			file, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return
-			}
-
-			s.logFile = log.New(file, "", log.Ldate|log.Ltime|log.Lshortfile)
+	if logFileName != "" && logFileName != s.logFileName {
+		s.logHandle, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return
 		}
 
-		s.logFileName = logFileName
+		s.logFile = log.New(s.logHandle, "", log.Ldate|log.Ltime)
 	}
+
+	s.logFileName = logFileName
 
 	s.Mutex.Unlock()
 

@@ -115,7 +115,7 @@ func (s *Server) updateRunningServices() {
 			err = sv.Init(&s.Services)
 
 			if err != nil {
-				s.Logs.rehash.LogAlertf("error starting %s [%s]", id, err)
+				s.Logs.rehash.LogAlertf("error starting %s [%w]", id, err)
 			} else {
 				go sv.Run()
 				s.Logs.rehash.Logf("started %s successfully", id)
@@ -137,7 +137,7 @@ func (s *Server) updateRunningServices() {
 			err = sv.Init(&s.Services)
 
 			if err != nil {
-				s.Logs.rehash.LogAlertf("error starting %s [%s]", id, err)
+				s.Logs.rehash.LogAlertf("error starting %s [%w]", id, err)
 			} else {
 				go sv.Run()
 				s.Logs.rehash.Logf("started %s successfully", id)

@@ -105,7 +105,7 @@ func (s *Service) Run() {
 	s.Logs.HTTPD.Logf("now listening on http://%s/ | http://%s/", externalIPPort, localIPPort)
 
 	if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		s.Logs.HTTPD.LogAlertf("error during listen %s", err)
+		s.Logs.HTTPD.LogAlertf("error during listen [%w]", err)
 	}
 }
 

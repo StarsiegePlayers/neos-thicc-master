@@ -270,7 +270,7 @@ func (s *Service) routePostAdminServerSettings(w http.ResponseWriter, r *http.Re
 		form.Error = "error while writing config file to disk"
 		form.ErrorCode = 1001
 
-		s.Logs.HTTPD.LogAlertf("error while writing config file to disk %s", err)
+		s.Logs.HTTPD.LogAlertf("error while writing config file to disk [%w]", err)
 	}
 
 	go s.Config.Rehash()

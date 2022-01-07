@@ -1,8 +1,8 @@
 package config
 
 import (
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 	"sync"
-	"time"
 )
 
 type Configuration struct {
@@ -68,14 +68,19 @@ type Configuration struct {
 }
 
 func (s *Service) SetDefaults() {
+	components := make([]string, 0)
+	for _, v := range service.List {
+		components = append(components, v.Tag)
+	}
+
 	s.viper.SetDefault("Log.ConsoleColors", true)
 	s.viper.SetDefault("Log.File", "")
-	s.viper.SetDefault("Log.Components", []string{"*"})
+	s.viper.SetDefault("Log.Components", components)
 
 	s.viper.SetDefault("Service.Listen.IP", "")
 	s.viper.SetDefault("Service.Listen.Port", 29000) //nolint:gomnd
 
-	s.viper.SetDefault("Service.ServerTTL", 5*time.Minute) //nolint:gomnd
+	s.viper.SetDefault("Service.ServerTTL", "5m")
 
 	s.viper.SetDefault("Service.Hostname", "")
 	s.viper.SetDefault("Service.Templates.MOTD", "")
@@ -87,7 +92,7 @@ func (s *Service) SetDefaults() {
 	s.viper.SetDefault("Service.Banned.Networks", []string{"224.0.0.0/4"})
 
 	s.viper.SetDefault("Poll.Enabled", false)
-	s.viper.SetDefault("Poll.Interval", 5*time.Minute) //nolint:gomnd
+	s.viper.SetDefault("Poll.Interval", "5m")
 	s.viper.SetDefault("Poll.KnownMasters", []string{"master1.starsiegeplayers.com:29000", "master2.starsiegeplayers.com:29000", "master3.starsiegeplayers.com:29000"})
 
 	s.viper.SetDefault("HTTPD.Enabled", true)
@@ -97,17 +102,21 @@ func (s *Service) SetDefaults() {
 	s.viper.SetDefault("HTTPD.MaxRequestsPerMinute", 15) //nolint:gomnd
 
 	s.viper.SetDefault("Advanced.Verbose", false)
-	s.viper.SetDefault("Advanced.Maintenance.Interval", 60*time.Second)     //nolint:gomnd
-	s.viper.SetDefault("Advanced.Network.ConnectionTimeout", 2*time.Second) //nolint:gomnd
-	s.viper.SetDefault("Advanced.Network.MaxPacketSize", 512)               //nolint:gomnd
-	s.viper.SetDefault("Advanced.Network.MaxBufferSize", 32768)             //nolint:gomnd
+	s.viper.SetDefault("Advanced.Maintenance.Interval", "1m")
+	s.viper.SetDefault("Advanced.Network.ConnectionTimeout", "2s")
+	s.viper.SetDefault("Advanced.Network.MaxPacketSize", 512)   //nolint:gomnd
+	s.viper.SetDefault("Advanced.Network.MaxBufferSize", 32768) //nolint:gomnd
 	s.viper.SetDefault("Advanced.Network.StunServers", []string{"stun.l.google.com:19302", "stun1.l.google.com:19302", "stun2.l.google.com:19302", "stun3.l.google.com:19302", "stun4.l.google.com:19302"})
 }
 
-func (s *Service) Write() error {
-	s.Values.Lock()
-	f := s.Values
+func (s *Service) UpdateValues(c *Configuration) error {
+	values := c
+	s.Values = values
+	return s.Write()
+}
 
+func (s *Service) setValues() {
+	f := s.Values
 	s.viper.Set("Log.ConsoleColors", f.Log.ConsoleColors)
 	s.viper.Set("Log.File", f.Log.File)
 	s.viper.Set("Log.Components", f.Log.Components)
@@ -143,6 +152,12 @@ func (s *Service) Write() error {
 	s.viper.Set("Advanced.Network.MaxPacketSize", f.Advanced.Network.MaxPacketSize)
 	s.viper.Set("Advanced.Network.MaxBufferSize", f.Advanced.Network.MaxBufferSize)
 	s.viper.Set("Advanced.Network.StunServers", f.Advanced.Network.StunServers)
+}
 
-	return s.viper.WriteConfig()
+func (s *Service) Write() (err error) {
+	s.Values.Lock()
+	s.setValues()
+	err = s.viper.WriteConfig()
+	s.Values.Unlock()
+	return
 }

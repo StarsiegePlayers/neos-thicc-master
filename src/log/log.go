@@ -44,7 +44,7 @@ func (l *Log) Logf(format string, args ...interface{}) {
 	log.Printf(s, args...)
 
 	if l.logService.logFile != nil {
-		format = l.ID.String() + " |" + format
+		format = l.ID.String() + " | " + format
 		l.logService.logFile.Printf(format, args...)
 	}
 }
@@ -65,7 +65,7 @@ func (l *Log) LogAlertf(format string, args ...interface{}) {
 	log.Printf(s, args...)
 
 	if l.logService.logFile != nil {
-		format = l.ID.String() + " !" + format
+		format = l.ID.String() + " ! " + format
 		l.logService.logFile.Printf(format, args...)
 	}
 }

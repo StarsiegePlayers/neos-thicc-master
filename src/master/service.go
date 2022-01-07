@@ -90,7 +90,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 
 	s.pconn, err = net.ListenPacket("udp", addrPort)
 	if err != nil {
-		s.Logs.Master.LogAlertf("unable to bind to %s - [%s]", addrPort, err)
+		s.Logs.Master.LogAlertf("unable to bind to %s - [%w]", addrPort, err)
 		return
 	}
 
@@ -112,7 +112,6 @@ func (s *Service) Run() {
 			var e *net.OpError
 			if errors.As(err, &e) && e.Op == "read" {
 				s.Logs.Master.LogAlertf("socket closed.")
-				continue
 			}
 
 			s.Logs.Master.LogAlertf("read error on socket [%s]", err)
@@ -274,7 +273,7 @@ func (s *Service) serveMaster(addr *net.Addr, buf []byte) {
 		case errors.Is(err, protocol.ErrorEmptyPacket):
 			s.Logs.Master.ServerAlertf(ipPort, "Empty packet received")
 		default:
-			s.Logs.Master.ServerAlertf(ipPort, "Error %s while parsing packet", err)
+			s.Logs.Master.ServerAlertf(ipPort, "Error while parsing packet [%w]", err)
 		}
 
 		return

@@ -1,16 +1,18 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
+# documentation at https://goreleaser.com
 project_name: mstrsvr
+
 dist: build
+
 before:
   hooks:
     - go mod tidy
     - go generate ./...
     - go vet
+
 builds:
-  - id: mstrsvr
+  - id: mstrsvr-x86_64
     no_unique_dist_dir: true
-    binary: "{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}/{{ .ProjectName }}_{{ .Os }}"
+    binary: "x86_64/{{ .ProjectName }}_{{ .Os }}"
     env:
       - CGO_ENABLED=0
     goos:
@@ -19,32 +21,63 @@ builds:
       - freebsd
       - openbsd
       - netbsd
-      - darwin
-      - android
     goarch:
       - amd64
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
+  - id: mstrsvr-x86
+    no_unique_dist_dir: true
+    binary: "x86/{{ .ProjectName }}_{{ .Os }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+      - freebsd
+      - openbsd
+      - netbsd
+    goarch:
       - 386
-      - arm64
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
+  - id: mstrsvr-arm
+    no_unique_dist_dir: true
+    binary: "arm/{{ .ProjectName }}_{{ .Arch }}v{{ .Arm }}_{{ .Os }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+      - freebsd
+      - openbsd
+      - netbsd
+    goarch:
       - arm
     goarm:
       - 5
       - 6
       - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: darwin
-        goarch: arm
-      - goos: android
-        goarch: amd64
-      - goos: android
-        goarch: 386
-      - goos: android
-        goarch: arm
     ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
+  - id: mstrsvr-arm64
+    no_unique_dist_dir: true
+    binary: "arm/{{ .ProjectName }}_{{ .Arch }}_{{ .Os }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+      - freebsd
+      - openbsd
+      - netbsd
+      - android
+    goarch:
+      - arm64
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
   - id: mstrsvr-mips
     no_unique_dist_dir: true
-    binary: "mips/{{ .ProjectName }}_{{.Arch}}_{{ .Os }}_{{ .Mips }}"
+    binary: "mips/{{ .ProjectName }}_{{.Arch}}_{{ .Mips }}_{{ .Os }}"
     env:
       - CGO_ENABLED=0
     goos:
@@ -58,24 +91,34 @@ builds:
     gomips:
       - hardfloat
       - softfloat
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
+  - id: mstrsvr-darwin_all
+    no_unique_dist_dir: true
+    binary: "{{ .ProjectName }}_darwin_all/{{ .ProjectName }}_{{ .Arch }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    ldflags: -s -w -X main.buildVersion={{.Version}} -X main.buildCommit={{.Commit}} -X main.buildDate={{.Date}} -X main.buildTime={{ time "15:04:05" }} -X main.buildRelease=true
+
 universal_binaries:
-  - name_template: "{{ .ProjectName }}"
+  - id: mstrsvr-darwin_all
     replace: true
+    name_template: '{{.ProjectName}}'
+
 archives:
-  - replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      386: i386
-      amd64: x86_64
-    files:
-      - README.md
-      - LICENSE
-      - mstrsvr.yaml
+  - format: binary
+
 checksum:
   name_template: 'checksums.txt'
+
 snapshot:
   name_template: "{{ incpatch .Version }}-dirty"
+
 changelog:
   sort: asc
   filters:

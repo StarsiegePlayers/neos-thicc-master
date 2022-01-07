@@ -63,25 +63,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) error {
 
 	err := s.logService.SetLogFile(s.Values.Log.File)
 	if err != nil {
-		s.LogAlertf("error opening log file %s [%s]", s.Values.Log.File, err)
-	}
-
-	if s.Values.HTTPD.Secrets.Authentication == "" || len(s.Values.HTTPD.Secrets.Authentication) < MinimumSecureKeyLength {
-		s.LogAlertf("invalid http authentication secret detected, generating...")
-		s.Values.HTTPD.Secrets.Authentication, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
-
-		if err != nil {
-			s.LogAlertf("error creating http authentication secret [%s]", err)
-		}
-	}
-
-	if s.Values.HTTPD.Secrets.Refresh == "" || len(s.Values.HTTPD.Secrets.Refresh) < MinimumSecureKeyLength {
-		s.LogAlertf("invalid http authentication refresh secret detected, generating...")
-		s.Values.HTTPD.Secrets.Refresh, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
-
-		if err != nil {
-			s.LogAlertf("error creating http authentication refresh secret [%s]", err)
-		}
+		s.LogAlertf("error opening log file %s [%w]", s.Values.Log.File, err)
 	}
 
 	s.viper.WatchConfig()
@@ -117,11 +99,11 @@ func (s *Service) Rehash() {
 		err := s.viper.WriteConfigAs(DefaultConfigFileName)
 
 		if err != nil {
-			s.LogAlertf("unable to create config! [%s]", err)
+			s.LogAlertf("unable to create config! [%w]", err)
 			os.Exit(1)
 		}
 	} else if err != nil {
-		s.LogAlertf("error while reading config file [%s]", err)
+		s.LogAlertf("error while reading config file [%w]", err)
 	}
 
 	// replace the in-memory config with a new one
@@ -137,7 +119,7 @@ func (s *Service) Rehash() {
 	))
 
 	if err != nil {
-		s.LogAlertf("error unmarshalling config [%s]", err)
+		s.LogAlertf("error unmarshalling config [%w]", err)
 	}
 
 	// normalize all admin-usernames to be lowercase
@@ -154,7 +136,7 @@ func (s *Service) Rehash() {
 	for _, x := range s.Values.Service.Banned.Networks {
 		_, network, err := net.ParseCIDR(x)
 		if err != nil {
-			s.LogAlertf("unable to parse BannedNetwork %s, %s", x, err)
+			s.LogAlertf("unable to parse BannedNetwork %s, %w", x, err)
 			os.Exit(1)
 		}
 
@@ -170,6 +152,25 @@ func (s *Service) Rehash() {
 	if s.UpdateRunningServicesFn != nil {
 		go s.UpdateRunningServicesFn()
 	}
+
+	if s.Values.HTTPD.Secrets.Authentication == "" || len(s.Values.HTTPD.Secrets.Authentication) < MinimumSecureKeyLength {
+		s.LogAlertf("invalid http authentication secret detected, generating...")
+
+		s.Values.HTTPD.Secrets.Authentication, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
+		if err != nil {
+			s.LogAlertf("error creating http authentication secret [%w]", err)
+		}
+	}
+
+	if s.Values.HTTPD.Secrets.Refresh == "" || len(s.Values.HTTPD.Secrets.Refresh) < MinimumSecureKeyLength {
+		s.LogAlertf("invalid http authentication refresh secret detected, generating...")
+
+		s.Values.HTTPD.Secrets.Refresh, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
+		if err != nil {
+			s.LogAlertf("error creating http authentication refresh secret [%w]", err)
+		}
+	}
+
 }
 
 func (s *Service) GenerateSecureRandomASCIIString(length int) (string, error) {

@@ -115,7 +115,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 
 	jsonOut, err := json.Marshal(data)
 	if err != nil {
-		s.Logs.HTTPD.LogAlertf("error marshalling api server list %s", err)
+		s.Logs.HTTPD.LogAlertf("error marshalling api server list [%w]", err)
 		return
 	}
 
