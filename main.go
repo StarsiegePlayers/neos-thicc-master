@@ -14,7 +14,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 )
 
-//go:generate go-winres make --arch "amd64,386,arm,arm64"
+//go:generate go-winres make --arch "amd64,386,arm,arm64" --file-version=git-tag --product-version=git-tag
 
 const startupTextWidth = 50
 
