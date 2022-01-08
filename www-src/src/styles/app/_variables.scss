@@ -8,6 +8,9 @@ $starsiege-text-yellow: #d5ab00;
 $starsiege-nav-blue: transparentize($starsiege-blue, 0.5);
 $starsiege-nav-yellow: transparentize($starsiege-yellow, 0.5);
 
+$starsiege-table-blue: transparentize($starsiege-blue, 0.5);
+$starsiege-table-yellow: transparentize($starsiege-yellow, 0.5);
+
 $body-bg: black;
 $primary: $starsiege-nav-blue;
 $link-color: #ffffff;

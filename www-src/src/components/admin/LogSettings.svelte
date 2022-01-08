@@ -1,5 +1,5 @@
 <script>
-    export let settings, form;
+    export let settings;
 </script>
 
 <div class="my-4 text-start">

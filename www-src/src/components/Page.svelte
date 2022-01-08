@@ -28,12 +28,6 @@
 <style lang="scss">
   @import "../styles/app/variables";
 
-  #header-image {
-    height: 2.3rem;
-    width: $left-nav-width + 5rem;
-    object-fit: cover;
-  }
-
   #page-content-wrapper {
     min-width: 100vw;
   }

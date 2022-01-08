@@ -53,7 +53,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.Logs.Router = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
 
 	if s.router == nil {
-		s.router = NewHTTPRouter(s.Logs.Router, s.Config.BuildInfo)
+		s.router = NewHTTPRouter(s.Logs.Router, s.Config.BuildInfo, s.Config)
 	}
 
 	s.registerRoutes()

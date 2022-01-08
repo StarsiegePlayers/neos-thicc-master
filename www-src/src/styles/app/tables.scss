@@ -1,8 +1,5 @@
 // table addons to bootstrap
 
-$starsiege-table-blue: transparentize($starsiege-blue, 0.5);
-$starsiege-table-yellow: transparentize($starsiege-yellow, 0.5);
-
 @include table-variant("ss-blue", $starsiege-table-blue);
 .table-ss-blue {
   background-color: $starsiege-table-blue;

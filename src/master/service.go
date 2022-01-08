@@ -112,14 +112,14 @@ func (s *Service) Run() {
 			var e *net.OpError
 			if errors.As(err, &e) && e.Op == "read" {
 				s.Logs.Master.LogAlertf("socket closed.")
+			} else {
+				s.Logs.Master.LogAlertf("read error on socket [%w]", err)
 			}
-
-			s.Logs.Master.LogAlertf("read error on socket [%s]", err)
 
 			break
 		}
 
-		// dedupe packets because wtf dynamix
+		// dedupe packets because udp
 		if prevIPPort == addr.String() && bytes.Equal(buf[:n], buf2[:n]) {
 			prevIPPort = ""
 			continue
@@ -184,7 +184,7 @@ func (s *Service) Rehash() {
 
 func (s *Service) Shutdown() {
 	if err := s.pconn.Close(); err != nil {
-		s.Logs.Master.LogAlertf("{%s} error while closing socket [%s]", service.Shutdown, err)
+		s.Logs.Master.LogAlertf("{%s} error while closing socket [%w]", service.Shutdown, err)
 	}
 }
 

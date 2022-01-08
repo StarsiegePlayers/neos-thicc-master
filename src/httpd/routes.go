@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"io/fs"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ const HTTPStatusEnhanceYourCalm = 420
 
 func (s *Service) registerRoutes() {
 	s.router.SetFileSystem(fs.Sub(s.Config.BuildInfo.EmbedFS, "www-build"))
+	s.router.AddRoute("/api/v1/master/info", http.MethodGet, http.HandlerFunc(s.routeGetMasterInfo))
 	s.router.AddRoute("/api/v1/multiplayer/servers", http.MethodGet, http.HandlerFunc(s.routeGetMultiplayerServers))
 	s.router.AddRoute("/api/v1/admin/login", http.MethodGet, s.middlewareThrottle(s.routeGetAdminLogin))
 	s.router.AddRoute("/api/v1/admin/login", http.MethodPost, s.middlewareThrottle(s.routePostAdminLogin))
@@ -52,7 +54,26 @@ func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Requ
 	_, _ = w.Write(data.Response)
 }
 
+func (s *Service) routeGetMasterInfo(w http.ResponseWriter, _ *http.Request) {
+	hostname := s.Config.Values.Service.Hostname
+	if hostname == "" {
+		hostname = "(no-name)"
+	}
+
+	s.router.jsonOut(w, struct {
+		Hostname string
+		MOTD     string
+		ID       uint16
+		Uptime   time.Time
+	}{
+		Hostname: hostname,
+		MOTD:     s.MasterService.TemplateService.Get(),
+		ID:       s.Config.Values.Service.ID,
+		Uptime:   s.Config.Startup,
+	})
+}
+
 func (s *Service) routeGetYeeted(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Add("Location", "https://youtu.be/pY725Ya74VU")
+	w.Header().Add("Location", config.EggURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }

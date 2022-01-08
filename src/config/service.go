@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
@@ -23,6 +24,7 @@ type Service struct {
 	UpdateRunningServicesFn func()
 	BuildInfo               *service.BuildInfo
 	ParsedBannedNets        []*net.IPNet
+	Startup                 time.Time
 
 	logService *log.Service
 	viper      *viper.Viper
@@ -39,6 +41,7 @@ const (
 )
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
+	s.Startup = time.Now()
 	s.logService = (*services)[service.Log].(*log.Service)
 	s.Log = s.logService.NewLogger(service.Config)
 

@@ -1,10 +1,13 @@
 package httpd
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/fs"
 	"net/http"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
@@ -17,8 +20,10 @@ type Router struct {
 	// routes["route"]["method"]
 	routes map[string]map[string]http.Handler
 
-	embedFS   http.FileSystem
-	buildInfo *service.BuildInfo
+	embedFS       http.FileSystem
+	buildInfo     *service.BuildInfo
+	indexTemplate *template.Template
+	config        *config.Service
 
 	*log.Log
 }
@@ -38,12 +43,13 @@ func (r *RouteLogger) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-func NewHTTPRouter(log *log.Log, buildinfo *service.BuildInfo) (out *Router) {
+func NewHTTPRouter(log *log.Log, buildinfo *service.BuildInfo, config *config.Service) (out *Router) {
 	out = &Router{
 		mux:       http.NewServeMux(),
 		routes:    make(map[string]map[string]http.Handler),
 		Log:       log,
 		buildInfo: buildinfo,
+		config:    config,
 	}
 	out.mux.HandleFunc("/", out.log(out.router))
 
@@ -68,6 +74,11 @@ func (rt *Router) SetFileSystem(fs fs.FS, err error) {
 	}
 
 	rt.embedFS = http.FS(fs)
+
+	err = rt.InitTemplate()
+	if err != nil {
+		rt.Log.LogAlertf("Error initializing index.html template [%w]", err)
+	}
 }
 
 func (rt *Router) jsonOut(w http.ResponseWriter, arg interface{}) {
@@ -109,12 +120,14 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// then match on the emedded filesystem
-	if r.Method == http.MethodGet {
+	// then match on the embedded filesystem (assets)
+	// empty string, root, index.html are all special use cases to be handled below
+	if r.RequestURI != "" && r.RequestURI != "/" && r.RequestURI != "index.html" && r.Method == http.MethodGet {
 		x, err := rt.embedFS.Open(r.RequestURI)
 		if err == nil {
 			_ = x.Close()
 
+			w.Header().Add("Cache-Control", "max-age=604800, stale-while-revalidate=86400")
 			rt.serveFile(w, r)
 
 			return
@@ -123,19 +136,22 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 
 	// if the url does not contain the api path, serve up the index
 	if !strings.HasPrefix(strings.ToLower(r.RequestURI), "/api") {
-		index, err := rt.embedFS.Open("index.html")
+		host := rt.config.Values.Service.Hostname
+		if host == "" {
+			host = "(no-name)"
+		}
+
+		indexBuffer := new(bytes.Buffer)
+		err := rt.indexTemplate.Execute(indexBuffer, &htmlTemplate{
+			Hostname: host,
+		})
+
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			rt.errorHandler(http.StatusInternalServerError, w, r)
 			return
 		}
 
-		fi, err := index.Stat()
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		http.ServeContent(w, r, fi.Name(), fi.ModTime(), index)
+		http.ServeContent(w, r, r.RequestURI, time.Now(), bytes.NewReader(indexBuffer.Bytes()))
 
 		return
 	}
