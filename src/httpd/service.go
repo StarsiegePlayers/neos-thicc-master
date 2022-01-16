@@ -39,7 +39,6 @@ type Service struct {
 	}
 
 	service.Interface
-	service.Rehashable
 	service.Runnable
 	service.Maintainable
 }
@@ -63,12 +62,12 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 		s.router = NewHTTPRouter(s.logs.Router, s.services.Config.BuildInfo, s.services.Config)
 	}
 
-	s.registerRoutes()
-
 	s.cache = make(map[HTTPCacheID]interface{})
 	s.cache[cacheAdminSessions] = make(map[string]*HTTPAdminSession)
 	s.cache[cacheThrottle] = make(map[string]int)
 	s.cache[cacheMultiplayer] = make(map[string]*CacheResponse)
+
+	s.registerRoutes()
 
 	return
 }

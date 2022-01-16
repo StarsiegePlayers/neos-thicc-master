@@ -93,3 +93,7 @@ func (s *Service) Shutdown() {
 	s.status = service.Stopped
 	s.log.Logf("shutdown complete")
 }
+
+func (s *Service) Status() service.LifeCycle {
+	return s.status
+}

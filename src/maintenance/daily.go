@@ -25,6 +25,7 @@ type DailyService struct {
 	}
 
 	service.Interface
+	service.Runnable
 }
 
 func (s *DailyService) Init(services *map[service.ID]service.Interface) (err error) {
@@ -54,6 +55,10 @@ func (s *DailyService) Run() {
 	}
 
 	s.status = service.Stopped
+}
+
+func (s *DailyService) Rehash() {
+	// noop
 }
 
 func (s *DailyService) Shutdown() {

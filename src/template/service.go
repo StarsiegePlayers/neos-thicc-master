@@ -57,7 +57,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.log = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Template)
 	s.Rehash()
 
-	s.status = service.Starting
+	s.status = service.Static
 
 	return
 }

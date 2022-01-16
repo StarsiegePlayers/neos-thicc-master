@@ -51,7 +51,7 @@ const (
 )
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
-	s.status = service.Starting
+	s.status = service.Static
 	s.Startup = time.Now()
 	s.logService = (*services)[service.Log].(*log.Service)
 	s.Log = s.logService.NewLogger(service.Config)
