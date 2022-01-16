@@ -32,8 +32,8 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
 	s.logs.Maintenance = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Maintenance)
 
+	s.Duration = s.services.Config.Values.Advanced.Maintenance.Interval.Duration
 	s.status = service.Starting
-	s.Rehash()
 
 	return
 }
@@ -45,6 +45,9 @@ func (s *Service) Status() service.LifeCycle {
 func (s *Service) Run() {
 	s.logs.Maintenance.Logf("will run every %s", s.services.Config.Values.Advanced.Maintenance.Interval.String())
 	s.status = service.Running
+
+	s.Duration = s.services.Config.Values.Advanced.Maintenance.Interval.Duration
+	s.Ticker = time.NewTicker(s.Duration)
 
 	for range s.C {
 		for _, v := range *s.services.Map {
@@ -63,12 +66,11 @@ func (s *Service) Rehash() {
 	s.status = service.Rehashing
 
 	if s.Duration != s.services.Config.Values.Advanced.Maintenance.Interval.Duration {
-		if s.status == service.Running {
+		if p == service.Running {
 			s.Shutdown()
 		}
 
-		s.Duration = s.services.Config.Values.Advanced.Maintenance.Interval.Duration
-		s.Ticker = time.NewTicker(s.Duration)
+		go s.Run()
 	}
 
 	s.status = p
