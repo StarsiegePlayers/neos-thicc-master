@@ -9,7 +9,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/master"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 
-	darkstar "github.com/StarsiegePlayers/darkstar-query-go/v2"
+	"github.com/StarsiegePlayers/darkstar-query-go/v2"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/server"
 )
