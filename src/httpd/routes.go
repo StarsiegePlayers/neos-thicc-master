@@ -4,10 +4,10 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
-
 	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 )
 
@@ -56,11 +56,14 @@ func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Requ
 	_, _ = w.Write(data.Response)
 }
 
-func (s *Service) routeGetMasterInfo(w http.ResponseWriter, _ *http.Request) {
+func (s *Service) routeGetMasterInfo(w http.ResponseWriter, r *http.Request) {
 	hostname := s.services.Config.Values.Service.Hostname
 	if hostname == "" {
 		hostname = "(no-name)"
 	}
+
+	requestHost, _, _ := net.SplitHostPort(r.RemoteAddr)
+	hostname = strings.ReplaceAll(hostname, "\\n", "")
 
 	s.router.jsonOut(w, struct {
 		Hostname string
@@ -69,7 +72,7 @@ func (s *Service) routeGetMasterInfo(w http.ResponseWriter, _ *http.Request) {
 		Uptime   time.Time
 	}{
 		Hostname: hostname,
-		MOTD:     s.services.Template.Get(""),
+		MOTD:     s.services.Template.Get(requestHost),
 		ID:       s.services.Config.Values.Service.ID,
 		Uptime:   s.services.Config.Startup,
 	})
