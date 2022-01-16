@@ -125,20 +125,17 @@ func (s *Service) Rehash() {
 	var p service.LifeCycle
 	p, s.status = s.status, service.Rehashing
 
-	switch {
-	case p == service.Running:
-		listenAddr := fmt.Sprintf("%s:%d", s.services.Config.Values.Service.Listen.IP, s.services.Config.Values.Service.Listen.Port)
-		if s.srv.Addr != listenAddr {
-			s.Shutdown()
-			s.srv.Addr = listenAddr
+	// invalidate our caches, except for the admin logins
+	admins := s.cache[cacheAdminSessions]
 
-			go s.Run()
-		}
-	case s.services.Config.Values.HTTPD.Enabled && s.status != service.Running:
-		go s.Run()
-	default:
-		s.status = p
-	}
+	s.Lock()
+	s.cache = make(map[HTTPCacheID]interface{})
+	s.cache[cacheThrottle] = make(map[string]int)
+	s.cache[cacheMultiplayer] = make(map[string]*CacheResponse)
+	s.cache[cacheAdminSessions] = admins
+	s.Unlock()
+
+	s.status = p
 }
 
 func (s *Service) Shutdown() {
