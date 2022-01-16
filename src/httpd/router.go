@@ -137,6 +137,7 @@ func (rt *Router) router(w http.ResponseWriter, r *http.Request) {
 	// if the url does not contain the api path, serve up the index
 	if !strings.HasPrefix(strings.ToLower(r.RequestURI), "/api") {
 		host := rt.config.Values.Service.Hostname
+		host = strings.ReplaceAll(host, "\\n", "")
 		if host == "" {
 			host = "(no-name)"
 		}
