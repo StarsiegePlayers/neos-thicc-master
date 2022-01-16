@@ -355,10 +355,10 @@ func (s *Service) registerHeartbeat(addr *net.Addr, ipPort string) {
 	s.ServerList[ipPort].SolicitedTime = time.Now()
 	s.ServerList[ipPort].LastSeen = time.Now()
 	s.ServerList[ipPort].PingInfoQuery = response[0]
+
 	go s.services.Stats.UpdatePlayerCountForServer(ipPort, response[0].PlayerCount)
 
 	s.Unlock()
-
 	s.registerPingInfo(addr, ipPort)
 }
 
