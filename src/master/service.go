@@ -74,6 +74,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 
 	s.services.Map = services
 	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
+	s.services.Stats = (*s.services.Map)[service.Stats].(*stats.Service)
 	s.services.Template = (*s.services.Map)[service.Template].(service.Getable)
 	s.services.STUN = (*s.services.Map)[service.STUN].(service.Getable)
 
@@ -354,6 +355,7 @@ func (s *Service) registerHeartbeat(addr *net.Addr, ipPort string) {
 	s.ServerList[ipPort].SolicitedTime = time.Now()
 	s.ServerList[ipPort].LastSeen = time.Now()
 	s.ServerList[ipPort].PingInfoQuery = response[0]
+	go s.services.Stats.UpdatePlayerCountForServer(ipPort, response[0].PlayerCount)
 
 	s.Unlock()
 
