@@ -29,7 +29,7 @@ func (l *Log) serverColor(input string) uint8 {
 }
 
 func (l *Log) Logf(format string, args ...interface{}) {
-	if key, ok := l.logService.logables.Load(l.ID); !ok || !key.(bool) {
+	if key, ok := l.logService.log.categories.Load(l.ID); !ok || !key.(bool) {
 		return
 	}
 
@@ -43,14 +43,14 @@ func (l *Log) Logf(format string, args ...interface{}) {
 	s := fmt.Sprintf("%35s %s\n", tag, l.logService.au.Colorize(format, color))
 	log.Printf(s, args...)
 
-	if l.logService.logFile != nil {
+	if l.logService.log.file != nil {
 		format = l.ID.String() + " | " + format
-		l.logService.logFile.Printf(format, args...)
+		l.logService.log.file.Printf(format, args...)
 	}
 }
 
 func (l *Log) LogAlertf(format string, args ...interface{}) {
-	if key, ok := l.logService.logables.Load(l.ID); !ok || !key.(bool) {
+	if key, ok := l.logService.log.categories.Load(l.ID); !ok || !key.(bool) {
 		return
 	}
 
@@ -64,14 +64,14 @@ func (l *Log) LogAlertf(format string, args ...interface{}) {
 	s := fmt.Sprintf("%44s %s\n", tag, l.logService.au.Yellow(format))
 	log.Printf(s, args...)
 
-	if l.logService.logFile != nil {
+	if l.logService.log.file != nil {
 		format = l.ID.String() + " ! " + format
-		l.logService.logFile.Printf(format, args...)
+		l.logService.log.file.Printf(format, args...)
 	}
 }
 
 func (l *Log) ServerLogf(server string, format string, args ...interface{}) {
-	if key, ok := l.logService.logables.Load(l.ID); !ok || !key.(bool) {
+	if key, ok := l.logService.log.categories.Load(l.ID); !ok || !key.(bool) {
 		return
 	}
 
@@ -81,14 +81,14 @@ func (l *Log) ServerLogf(server string, format string, args ...interface{}) {
 	s := fmt.Sprintf("%s {%s} %s\n", tag, l.logService.au.Index(color, l.ID.String()), l.logService.au.Index(color, format))
 	log.Printf(s, args...)
 
-	if l.logService.logFile != nil {
+	if l.logService.log.file != nil {
 		format = "[" + server + "] | {" + l.ID.String() + "} " + format
-		l.logService.logFile.Printf(format, args...)
+		l.logService.log.file.Printf(format, args...)
 	}
 }
 
 func (l *Log) ServerAlertf(server string, format string, args ...interface{}) {
-	if key, ok := l.logService.logables.Load(l.ID); !ok || !key.(bool) {
+	if key, ok := l.logService.log.categories.Load(l.ID); !ok || !key.(bool) {
 		return
 	}
 
@@ -98,9 +98,9 @@ func (l *Log) ServerAlertf(server string, format string, args ...interface{}) {
 	s := fmt.Sprintf("%44s {%s} %s\n", tag, l.logService.au.Index(color, l.ID.String()), l.logService.au.Index(color, format))
 	log.Printf(s, args...)
 
-	if l.logService.logFile != nil {
+	if l.logService.log.file != nil {
 		format = "[" + server + "] ! {" + l.ID.String() + "} " + format
-		l.logService.logFile.Printf(format, args...)
+		l.logService.log.file.Printf(format, args...)
 	}
 }
 

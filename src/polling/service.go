@@ -14,17 +14,23 @@ import (
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/server"
 )
 
-type PollService struct {
+type Service struct {
 	sync.Mutex
 	*time.Ticker
 
-	Services       *map[service.ID]service.Interface
-	Config         *config.Service
-	MasterService  *master.Service
 	PollMasterInfo *PollMasterInfo
 
-	*log.Log
+	services struct {
+		Map    *map[service.ID]service.Interface
+		Config *config.Service
+		Master *master.Service
+	}
+	status   service.LifeCycle
+	duration time.Duration
+	log      *log.Log
+
 	service.Interface
+	service.Runnable
 }
 
 type PollMasterInfo struct {
@@ -33,49 +39,57 @@ type PollMasterInfo struct {
 	Errors  []error
 }
 
-func (p *PollService) Init(services *map[service.ID]service.Interface) (err error) {
-
-	p.Services = services
-	p.Config = (*p.Services)[service.Config].(*config.Service)
-	p.MasterService = (*p.Services)[service.Master].(*master.Service)
-	p.Log = (*p.Services)[service.Log].(*log.Service).NewLogger(service.Poll)
-
-	p.Ticker = time.NewTicker(p.Config.Values.Poll.Interval.Duration)
+func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
+	s.services.Map = services
+	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
+	s.services.Master = (*s.services.Map)[service.Master].(*master.Service)
+	s.log = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Poll)
+	s.status = service.Starting
 
 	return
 }
 
-func (p *PollService) Rehash() {
-	p.Shutdown()
-	p.Run()
-}
+func (s *Service) Rehash() {
+	if s.duration != s.services.Config.Values.Poll.Interval.Duration {
+		s.log.Logf("restarting poll service")
+		s.Stop()
 
-func (p *PollService) Run() {
-	p.Logf("will run every %s", p.Config.Values.Poll.Interval.String())
-	p.Logf("known masters are %s", p.Config.Values.Poll.KnownMasters)
-	p.query()
-
-	for range p.C {
-		p.query()
+		go s.Run()
 	}
 }
 
-func (p *PollService) query() {
-	q := darkstar.NewQuery(p.Config.Values.Advanced.Network.ConnectionTimeout.Duration, p.Config.Values.Advanced.Verbose)
-	q.Addresses = p.Config.Values.Poll.KnownMasters
+func (s *Service) Run() {
+	s.status = service.Running
+	s.duration = s.services.Config.Values.Poll.Interval.Duration
+	s.log.Logf("will run every %s", s.duration.String())
+	s.log.Logf("known masters are %s", s.services.Config.Values.Poll.KnownMasters)
+
+	s.Ticker = time.NewTicker(s.duration)
+	s.query()
+
+	for range s.C {
+		s.query()
+	}
+}
+
+func (s *Service) query() {
+	q := darkstar.NewQuery(s.services.Config.Values.Advanced.Network.ConnectionTimeout.Duration, s.services.Config.Values.Advanced.Verbose)
+	q.Addresses = s.services.Config.Values.Poll.KnownMasters
 
 	pm := new(PollMasterInfo)
 	pm.Masters, pm.Games, pm.Errors = q.Masters()
-	p.Logf("found %d games on %d masters", len(pm.Games), len(pm.Masters))
+	s.log.Logf("found %d games on %d masters", len(pm.Games), len(pm.Masters))
 
-	p.Lock()
-	p.PollMasterInfo = pm
-	p.Unlock()
+	s.Lock()
+	s.PollMasterInfo = pm
+	s.Unlock()
 
-	p.MasterService.RegisterExternalServerList(pm.Games)
+	s.services.Master.RegisterExternalServerList(pm.Games)
 }
 
-func (p *PollService) Shutdown() {
-	p.Stop()
-	p.Logf("shutdown complete")
+func (s *Service) Shutdown() {
+	s.status = service.Stopping
+	s.Stop()
+	s.status = service.Stopped
+	s.log.Logf("shutdown complete")
 }

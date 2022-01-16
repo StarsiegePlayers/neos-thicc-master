@@ -8,29 +8,39 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 )
 
 type Service struct {
-	Values                  *Configuration
-	RehashFn                func()
-	UpdateRunningServicesFn func()
-	BuildInfo               *service.BuildInfo
-	ParsedBannedNets        []*net.IPNet
-	Startup                 time.Time
+	Values           *Configuration
+	Startup          time.Time
+	BuildInfo        *service.BuildInfo
+	ParsedBannedNets []*net.IPNet
 
-	logService *log.Service
-	viper      *viper.Viper
+	Callback struct {
+		Rehash            func()
+		StartStopServices func()
+		Shutdown          func()
+		Restart           func()
+	}
+
+	logService     *log.Service
+	viper          *viper.Viper
+	rehashMutex    sync.Mutex
+	status         service.LifeCycle
+	rehashSentinel bool
 
 	*log.Log
 	service.Interface
+	service.Rehashable
+	service.Getable
 }
 
 const (
@@ -41,6 +51,7 @@ const (
 )
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
+	s.status = service.Starting
 	s.Startup = time.Now()
 	s.logService = (*services)[service.Log].(*log.Service)
 	s.Log = s.logService.NewLogger(service.Config)
@@ -55,11 +66,6 @@ func (s *Service) Init(services *map[service.ID]service.Interface) error {
 
 	s.SetDefaults()
 
-	s.viper.OnConfigChange(func(in fsnotify.Event) {
-		s.Logf("configuration change detected, updating...")
-		s.Rehash()
-	})
-
 	s.Rehash()
 	s.logService.SetColors(s.Values.Log.ConsoleColors)
 	s.logService.SetLogables(s.Values.Log.Components)
@@ -69,24 +75,18 @@ func (s *Service) Init(services *map[service.ID]service.Interface) error {
 		s.LogAlertf("error opening log file %s [%w]", s.Values.Log.File, err)
 	}
 
-	s.viper.WatchConfig()
-
 	return nil
+}
+
+func (s *Service) Status() service.LifeCycle {
+	return s.status
 }
 
 func (s *Service) SetBuildInfo(info *service.BuildInfo) {
 	s.BuildInfo = info
 }
 
-func (s *Service) Run() {
-	// noop
-}
-
-func (s *Service) Shutdown() {
-	// noop
-}
-
-func (s *Service) Get() (out string) {
+func (s *Service) Get(string) (out string) {
 	outB, _ := json.Marshal(s.Values)
 	out = string(outB)
 
@@ -94,25 +94,29 @@ func (s *Service) Get() (out string) {
 }
 
 func (s *Service) Rehash() {
+	p := s.status
+	s.status = service.Rehashing
+	initialRewrite := false
+
 	err := s.viper.ReadInConfig()
+	if err != nil {
+		configFileNotFoundErr := viper.ConfigFileNotFoundError{}
+		if errors.As(err, &configFileNotFoundErr) {
+			s.LogAlertf("file not found, creating...")
+			err := s.viper.WriteConfigAs(DefaultConfigFileName)
 
-	cfgFileNotFoundErr := viper.ConfigFileNotFoundError{}
-	if ok := errors.As(err, &cfgFileNotFoundErr); ok {
-		s.LogAlertf("file not found, creating...")
-		err := s.viper.WriteConfigAs(DefaultConfigFileName)
-
-		if err != nil {
-			s.LogAlertf("unable to create config! [%w]", err)
-			os.Exit(1)
+			if err != nil {
+				s.LogAlertf("unable to create config! [%s]", err)
+				os.Exit(1)
+			}
+		} else {
+			s.LogAlertf("error while reading config file [%s]", err)
 		}
-	} else if err != nil {
-		s.LogAlertf("error while reading config file [%w]", err)
 	}
 
 	// replace the in-memory config with a new one
 	s.Values = new(Configuration)
 	s.Values.Lock()
-	defer s.Values.Unlock()
 	err = s.viper.Unmarshal(&s.Values, viper.DecodeHook(
 		mapstructure.ComposeDecodeHookFunc(
 			StringToCustomDurationHookFunc(),
@@ -140,29 +144,24 @@ func (s *Service) Rehash() {
 		_, network, err := net.ParseCIDR(x)
 		if err != nil {
 			s.LogAlertf("unable to parse BannedNetwork %s, %w", x, err)
-			os.Exit(1)
+			continue
 		}
 
 		s.ParsedBannedNets = append(s.ParsedBannedNets, network)
 	}
 
-	// execute the main rehash callback function
-	if s.RehashFn != nil {
-		go s.RehashFn()
-	}
+	s.Values.Unlock()
 
-	// update the running services
-	if s.UpdateRunningServicesFn != nil {
-		go s.UpdateRunningServicesFn()
-	}
-
+	// ensure we have secure httpd secrets
 	if s.Values.HTTPD.Secrets.Authentication == "" || len(s.Values.HTTPD.Secrets.Authentication) < MinimumSecureKeyLength {
 		s.LogAlertf("invalid http authentication secret detected, generating...")
 
 		s.Values.HTTPD.Secrets.Authentication, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
 		if err != nil {
-			s.LogAlertf("error creating http authentication secret [%w]", err)
+			s.LogAlertf("error creating http authentication secret [%s]", err)
 		}
+
+		initialRewrite = true
 	}
 
 	if s.Values.HTTPD.Secrets.Refresh == "" || len(s.Values.HTTPD.Secrets.Refresh) < MinimumSecureKeyLength {
@@ -170,12 +169,43 @@ func (s *Service) Rehash() {
 
 		s.Values.HTTPD.Secrets.Refresh, err = s.GenerateSecureRandomASCIIString(MinimumSecureKeyLength)
 		if err != nil {
-			s.LogAlertf("error creating http authentication refresh secret [%w]", err)
+			s.LogAlertf("error creating http authentication refresh secret [%s]", err)
+		}
+
+		initialRewrite = true
+	}
+
+	if initialRewrite {
+		err = s.Write()
+		if err != nil {
+			s.LogAlertf("error writing config [%s]", err)
 		}
 	}
 
+	// execute the main rehash callback function
+	if s.Callback.Rehash != nil && !s.rehashSentinel {
+		s.rehashMutex.Lock()
+		s.rehashSentinel = true
+		s.Callback.Rehash()
+		s.rehashSentinel = false
+		s.rehashMutex.Unlock()
+	}
+
+	// update the running services
+	if s.Callback.StartStopServices != nil && !s.rehashSentinel {
+		s.rehashMutex.Lock()
+		s.rehashSentinel = true
+		s.Callback.StartStopServices()
+		s.rehashSentinel = false
+		s.rehashMutex.Unlock()
+	}
+
+	s.status = p
 }
 
+// GenerateSecureRandomASCIIString generates a secure random ASCII string
+// and is adapted from the following source:
+// https://gist.github.com/denisbrodbeck/635a644089868a51eccd6ae22b2eb800#gistcomment-3719619
 func (s *Service) GenerateSecureRandomASCIIString(length int) (string, error) {
 	result := make([]byte, length)
 

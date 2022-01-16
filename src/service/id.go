@@ -20,10 +20,12 @@ const (
 	Log
 	Startup
 	Shutdown
+	Restart
 	Rehash
 	Config
 	STUN
 	Template
+	Stats
 	Master
 	Poll
 	Maintenance
@@ -42,10 +44,12 @@ var (
 		Log:                   {Log, "logger", "Logging Service"},
 		Startup:               {Startup, "startup", "Server Startup"},
 		Shutdown:              {Shutdown, "shutdown", "Server Shutdown"},
+		Restart:               {Restart, "restart", "Server Restart"},
 		Rehash:                {Rehash, "rehash", "Rehashing Messages"},
 		Config:                {Config, "config", "Configuration Service"},
 		STUN:                  {STUN, "stun-client", "STUN Client"},
 		Template:              {Template, "template", "Template Strings Service"},
+		Stats:                 {Master, "stats", "Statistics Service"},
 		Master:                {Master, "master", "Master Service"},
 		Poll:                  {Poll, "poll", "Peer Master Polling Service"},
 		Maintenance:           {Maintenance, "maintenance", "Server Maintenance Service"},

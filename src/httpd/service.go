@@ -20,22 +20,27 @@ type Service struct {
 	srv    *http.Server
 	router *Router
 
-	Services      *map[service.ID]service.Interface
-	Config        *config.Service
-	MasterService *master.Service
-	PollService   *polling.PollService
-	STUNService   service.Interface
-
 	listenIP   string
 	listenPort uint16
+	status     service.LifeCycle
+	cache      HTTPCache
 
-	cache HTTPCache
-
-	Logs struct {
+	services struct {
+		Map      *map[service.ID]service.Interface
+		Config   *config.Service
+		Master   *master.Service
+		Poll     *polling.Service
+		STUN     service.Getable
+		Template service.Getable
+	}
+	logs struct {
 		HTTPD  *log.Log
 		Router *log.Log
 	}
+
 	service.Interface
+	service.Rehashable
+	service.Runnable
 	service.Maintainable
 }
 
@@ -44,16 +49,18 @@ const (
 )
 
 func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
-	s.Services = services
-	s.Config = (*s.Services)[service.Config].(*config.Service)
-	s.MasterService = (*s.Services)[service.Master].(*master.Service)
-	s.PollService, _ = (*s.Services)[service.Poll].(*polling.PollService)
-	s.STUNService = (*s.Services)[service.STUN]
-	s.Logs.HTTPD = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
-	s.Logs.Router = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
+	s.status = service.Starting
+	s.services.Map = services
+	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
+	s.services.Master = (*s.services.Map)[service.Master].(*master.Service)
+	s.services.Poll, _ = (*s.services.Map)[service.Poll].(*polling.Service)
+	s.services.STUN = (*s.services.Map)[service.STUN].(service.Getable)
+	s.services.Template = (*s.services.Map)[service.Template].(service.Getable)
+	s.logs.HTTPD = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
+	s.logs.Router = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
 
 	if s.router == nil {
-		s.router = NewHTTPRouter(s.Logs.Router, s.Config.BuildInfo, s.Config)
+		s.router = NewHTTPRouter(s.logs.Router, s.services.Config.BuildInfo, s.services.Config)
 	}
 
 	s.registerRoutes()
@@ -63,25 +70,18 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.cache[cacheThrottle] = make(map[string]int)
 	s.cache[cacheMultiplayer] = make(map[string]*CacheResponse)
 
-	s.srv = s.newServer()
-
-	return nil
-}
-
-func (s *Service) Maintenance() {
-	go s.maintenanceMultiplayerServersCache()
-	s.clearThrottleCache()
+	return
 }
 
 func (s *Service) newServer() (out *http.Server) {
-	s.listenIP = s.Config.Values.HTTPD.Listen.IP
+	s.listenIP = s.services.Config.Values.HTTPD.Listen.IP
 	if s.listenIP == "" {
-		s.listenIP = s.Config.Values.Service.Listen.IP
+		s.listenIP = s.services.Config.Values.Service.Listen.IP
 	}
 
-	s.listenPort = s.Config.Values.HTTPD.Listen.Port
+	s.listenPort = s.services.Config.Values.HTTPD.Listen.Port
 	if s.listenPort <= 0 {
-		s.listenPort = s.Config.Values.Service.Listen.Port
+		s.listenPort = s.services.Config.Values.Service.Listen.Port
 	}
 
 	ipPort := fmt.Sprintf("%s:%d", s.listenIP, s.listenPort)
@@ -93,39 +93,65 @@ func (s *Service) newServer() (out *http.Server) {
 	return
 }
 
+func (s *Service) Status() service.LifeCycle {
+	return s.status
+}
+
+func (s *Service) Maintenance() {
+	s.maintenanceMultiplayerServersCache()
+	s.clearThrottleCache()
+}
+
 func (s *Service) Run() {
+	s.srv = s.newServer()
+
 	ip := s.listenIP
 	if ip == "" {
 		ip = service.LocalhostAddress
 	}
 
 	localIPPort := fmt.Sprintf("%s:%d", ip, s.listenPort)
-	externalIPPort := fmt.Sprintf("%s:%d", s.STUNService.Get(), s.listenPort)
+	externalIPPort := fmt.Sprintf("%s:%d", s.services.STUN.Get(""), s.listenPort)
 
-	s.Logs.HTTPD.Logf("now listening on http://%s/ | http://%s/", externalIPPort, localIPPort)
+	s.logs.HTTPD.Logf("now listening on http://%s/ | http://%s/", externalIPPort, localIPPort)
 
+	s.status = service.Running
 	if err := s.srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		s.Logs.HTTPD.LogAlertf("error during listen [%w]", err)
+		s.logs.HTTPD.LogAlertf("error during listen [%w]", err)
 	}
 }
 
 func (s *Service) Rehash() {
-	listenAddr := fmt.Sprintf("%s:%d", s.Config.Values.Service.Listen.IP, s.Config.Values.Service.Listen.Port)
-	if s.srv.Addr != listenAddr {
-		s.Shutdown()
+	var p service.LifeCycle
+	p, s.status = s.status, service.Rehashing
+
+	switch {
+	case p == service.Running:
+		listenAddr := fmt.Sprintf("%s:%d", s.services.Config.Values.Service.Listen.IP, s.services.Config.Values.Service.Listen.Port)
+		if s.srv.Addr != listenAddr {
+			s.Shutdown()
+			s.srv.Addr = listenAddr
+
+			go s.Run()
+		}
+	case s.services.Config.Values.HTTPD.Enabled && s.status != service.Running:
+		go s.Run()
+	default:
+		s.status = p
 	}
 }
 
 func (s *Service) Shutdown() {
+	s.status = service.Stopping
+
 	ctxShutDown, cancel := context.WithTimeout(context.Background(), ShutdownTimer)
-	defer func() {
-		cancel()
-	}()
+	defer cancel()
 
 	if err := s.srv.Shutdown(ctxShutDown); err != nil {
-		s.Logs.HTTPD.LogAlertf("shutdown failed: %s", err)
+		s.logs.HTTPD.LogAlertf("shutdown failed: %s", err)
 		return
 	}
 
-	s.Logs.HTTPD.Logf("shutdown complete")
+	s.status = service.Stopped
+	s.logs.HTTPD.Logf("shutdown complete")
 }

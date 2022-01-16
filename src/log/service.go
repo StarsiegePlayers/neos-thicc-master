@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service/file"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-colorable"
@@ -16,10 +17,12 @@ type Service struct {
 
 	au              aurora.Aurora
 	componentColors map[service.ID]aurora.Color
-	logables        sync.Map
-	logFileName     string
-	logFile         *log.Logger
-	logHandle       *os.File
+	log             struct {
+		categories sync.Map
+		fileName   string
+		file       *log.Logger
+		handle     *os.File
+	}
 
 	service.Interface
 }
@@ -55,6 +58,10 @@ func (s *Service) Init(*map[service.ID]service.Interface) error {
 	return nil
 }
 
+func (s *Service) Status() service.LifeCycle {
+	return service.Static
+}
+
 func (s *Service) NewLogger(id service.ID) *Log {
 	return &Log{
 		ID:         id,
@@ -71,11 +78,11 @@ func (s *Service) SetLogables(components []string) {
 
 	if len(components) > 1 && components[0] != "*" {
 		for _, v := range components {
-			s.logables.Store(service.TagToID(v), true)
+			s.log.categories.Store(service.TagToID(v), true)
 		}
 	} else {
 		for k := range service.List {
-			s.logables.Store(k, true)
+			s.log.categories.Store(k, true)
 		}
 	}
 
@@ -85,30 +92,18 @@ func (s *Service) SetLogables(components []string) {
 func (s *Service) SetLogFile(logFileName string) (err error) {
 	s.Mutex.Lock()
 
-	if logFileName != "" && logFileName != s.logFileName {
-		s.logHandle, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if logFileName != "" && logFileName != s.log.fileName {
+		s.log.handle, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, file.UserReadWrite|file.GroupRead|file.OtherRead)
 		if err != nil {
 			return
 		}
 
-		s.logFile = log.New(s.logHandle, "", log.Ldate|log.Ltime)
+		s.log.file = log.New(s.log.handle, "", log.Ldate|log.Ltime)
 	}
 
-	s.logFileName = logFileName
+	s.log.fileName = logFileName
 
 	s.Mutex.Unlock()
 
 	return
-}
-
-func (s *Service) Run() {
-	// noop
-}
-
-func (s *Service) Rehash() {
-	// noop
-}
-
-func (s *Service) Shutdown() {
-	// noop
 }

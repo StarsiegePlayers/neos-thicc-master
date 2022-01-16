@@ -12,40 +12,42 @@ import (
 )
 
 type Service struct {
-	services      *map[service.ID]service.Interface
-	configService *config.Service
-	stunServers   []string
-	cachedOutput  string
+	stunServers  []string
+	cachedOutput string
 
 	LocalAddresses []*net.IPNet
 
-	*log.Log
+	services struct {
+		Map    *map[service.ID]service.Interface
+		Config *config.Service
+	}
+
+	log *log.Log
+
 	service.Interface
+	service.Rehashable
 }
 
 func (s *Service) Init(services *map[service.ID]service.Interface) error {
-	s.Log = (*services)[service.Log].(*log.Service).NewLogger(service.STUN)
-	s.configService = (*services)[service.Config].(*config.Service)
+	s.log = (*services)[service.Log].(*log.Service).NewLogger(service.STUN)
+	s.services.Map = services
+	s.services.Config = (*services)[service.Config].(*config.Service)
 	s.Rehash()
 
 	return nil
 }
 
+func (s *Service) Status() service.LifeCycle {
+	return service.Static
+}
+
 func (s *Service) Rehash() {
-	s.stunServers = s.configService.Values.Advanced.Network.StunServers
+	s.stunServers = s.services.Config.Values.Advanced.Network.StunServers
 	s.LocalAddresses = s.generateUniqueLocalAddresses()
 	s.cachedOutput = ""
 }
 
-func (s *Service) Run() {
-	// noop
-}
-
-func (s *Service) Shutdown() {
-	// noop
-}
-
-func (s *Service) Get() string {
+func (s *Service) Get(string) string {
 	if s.cachedOutput != "" {
 		return s.cachedOutput
 	}
@@ -53,28 +55,28 @@ func (s *Service) Get() string {
 	for _, stunServer := range s.stunServers {
 		c, err := stun.Dial("udp4", stunServer)
 		if err != nil {
-			s.LogAlertf("dial error [%s]", err)
+			s.log.LogAlertf("dial error [%s]", err)
 			continue
 		}
 
 		if err = c.Do(stun.MustBuild(stun.TransactionID, stun.BindingRequest), func(res stun.Event) {
 			if res.Error != nil {
-				s.LogAlertf("packet building error [%s]", res.Error)
+				s.log.LogAlertf("packet building error [%s]", res.Error)
 				return
 			}
 			var xorAddr stun.XORMappedAddress
 			if getErr := xorAddr.GetFrom(res.Message); getErr != nil {
-				s.LogAlertf("xorAddress error [%s]", getErr)
+				s.log.LogAlertf("xorAddress error [%s]", getErr)
 				return
 			}
 			s.cachedOutput = xorAddr.IP.String()
 		}); err != nil {
-			s.LogAlertf("error during STUN-do [%s]", err)
+			s.log.LogAlertf("error during STUN-do [%s]", err)
 			continue
 		}
 
 		if err := c.Close(); err != nil {
-			s.LogAlertf("error closing STUN client [%s]", err)
+			s.log.LogAlertf("error closing STUN client [%s]", err)
 		}
 
 		if s.cachedOutput != "" {

@@ -9,6 +9,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/master"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/stats"
 
 	"github.com/golang-module/carbon/v2"
 	"github.com/sbani/go-humanizer/numbers"
@@ -16,60 +17,83 @@ import (
 
 type Service struct {
 	sync.Mutex
-	Services      *map[service.ID]service.Interface
-	Cache         *template.Template
-	MasterService *master.Service
-	Config        *config.Service
 
-	*log.Log
+	services struct {
+		Map    *map[service.ID]service.Interface
+		Master *master.Service
+		Config *config.Service
+		Stats  *stats.Service
+	}
+
+	status        service.LifeCycle
+	templateCache *template.Template
+	log           *log.Log
+
 	service.Interface
-	service.Acquirable
+	service.Rehashable
+	service.Getable
 }
 
 type Substitutions struct {
-	Time    string
-	UserNum string
-	NL      string
+	Time          string
+	UserNum       string
+	UserTotal     int
+	ActiveServers int
+	TotalServers  int
+	IP            string
+	NL            string
 }
 
-func (t *Service) Init(services *map[service.ID]service.Interface) (err error) {
-	t.Services = services
-	t.Config = (*t.Services)[service.Config].(*config.Service)
-	t.MasterService = (*t.Services)[service.Master].(*master.Service)
-	t.Log = (*t.Services)[service.Log].(*log.Service).NewLogger(service.Template)
-	t.Rehash()
+type SubstitutionParameters struct {
+	Host string
+	Port string
+}
+
+func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
+	s.services.Map = services
+	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
+	s.services.Master = (*s.services.Map)[service.Master].(*master.Service)
+	s.services.Stats = (*s.services.Map)[service.Stats].(*stats.Service)
+	s.log = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Template)
+	s.Rehash()
+
+	s.status = service.Starting
 
 	return
 }
 
-func (t *Service) Run() {
-	// noop
-}
+func (s *Service) Rehash() {
+	p := s.status
+	s.status = service.Rehashing
 
-func (t *Service) Rehash() {
-	t.Logf("reloading templates")
-	motd, err := template.New("motd").Parse(t.Config.Values.Service.Templates.MOTD)
+	s.log.Logf("reloading templates")
+	motd, err := template.New("motd").Parse(s.services.Config.Values.Service.Templates.MOTD)
 
 	if err != nil {
-		t.LogAlertf("unable to parse motd template")
+		s.log.LogAlertf("unable to parse motd template")
 		return
 	}
 
-	t.Cache = motd
+	s.templateCache = motd
+	s.status = p
 }
 
-func (t *Service) Shutdown() {
-	// noop
+func (s *Service) Status() service.LifeCycle {
+	return s.status
 }
 
-func (t *Service) Get() string {
-	if t.Cache != nil {
+func (s *Service) Get(host string) string {
+	if s.templateCache != nil {
 		out := bytes.NewBuffer([]byte{})
 
-		err := t.Cache.Execute(out, Substitutions{
-			Time:    carbon.Now().Format(t.Config.Values.Service.Templates.TimeFormat),
-			UserNum: numbers.Ordinalize(len(t.MasterService.DailyStats.UniqueUsers)),
-			NL:      "\\n",
+		err := s.templateCache.Execute(out, Substitutions{
+			Time:          carbon.Now().Format(s.services.Config.Values.Service.Templates.TimeFormat),
+			UserNum:       numbers.Ordinalize(s.services.Stats.GetDailyHostNumber(host)),
+			UserTotal:     s.services.Stats.GetDailyClientsTotal(),
+			ActiveServers: s.services.Stats.GetTotalServersWithPlayers(),
+			TotalServers:  len(s.services.Master.ServerList),
+			IP:            host,
+			NL:            "\\n",
 		})
 		if err != nil {
 			return ""

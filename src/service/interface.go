@@ -4,11 +4,7 @@ const LocalhostAddress = "127.0.0.1"
 
 type Interface interface {
 	Init(services *map[ID]Interface) error
-	Run()
-	Rehash()
-	Shutdown()
-
-	Acquirable
+	Status() LifeCycle
 }
 
 type Maintainable interface {
@@ -19,6 +15,16 @@ type DailyMaintainable interface {
 	DailyMaintenance()
 }
 
-type Acquirable interface {
-	Get() string
+type Getable interface {
+	Get(string) string
+}
+
+type Rehashable interface {
+	Rehash()
+}
+
+type Runnable interface {
+	Run()
+	Shutdown()
+	Rehashable
 }

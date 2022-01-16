@@ -2,7 +2,6 @@ package src
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
@@ -12,6 +11,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/master"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/polling"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/stats"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/template"
 )
@@ -22,20 +22,22 @@ type Server struct {
 
 	Services map[service.ID]service.Interface
 
-	IsRunning bool
-
 	Logs struct {
 		startup  *log.Log
 		shutdown *log.Log
+		restart  *log.Log
 		rehash   *log.Log
 	}
 
+	status service.LifeCycle
+
 	service.Interface
+	service.Runnable
 }
 
 func (s *Server) Init(*map[service.ID]service.Interface) error {
 	s.Context, s.cancel = context.WithCancel(context.Background())
-	s.IsRunning = true
+	s.status = service.Starting
 
 	s.Services = make(map[service.ID]service.Interface)
 
@@ -48,6 +50,7 @@ func (s *Server) Init(*map[service.ID]service.Interface) error {
 	s.Services[service.Config] = configService
 
 	s.Services[service.Template] = new(template.Service)
+	s.Services[service.Stats] = new(stats.Service)
 	s.Services[service.Master] = new(master.Service)
 	s.Services[service.Maintenance] = new(maintenance.Service)
 	s.Services[service.DailyMaintenance] = new(maintenance.DailyService)
@@ -58,12 +61,13 @@ func (s *Server) Init(*map[service.ID]service.Interface) error {
 	}
 
 	if configService.Values.Poll.Enabled {
-		s.Services[service.Poll] = new(polling.PollService)
+		s.Services[service.Poll] = new(polling.Service)
 	}
 
 	s.Logs.startup = loggerService.NewLogger(service.Startup)
 	s.Logs.rehash = loggerService.NewLogger(service.Rehash)
 	s.Logs.shutdown = loggerService.NewLogger(service.Shutdown)
+	s.Logs.restart = loggerService.NewLogger(service.Restart)
 
 	s.Logs.startup.Logf("initialization completed")
 
@@ -91,87 +95,108 @@ func (s *Server) Run() {
 			continue
 		}
 
-		go s.Services[v].Run()
+		if sv, ok := s.Services[v].(service.Runnable); ok {
+			go sv.Run()
+		}
 	}
 
-	s.Services[service.Config].(*config.Service).RehashFn = s.Rehash
-	s.Services[service.Config].(*config.Service).UpdateRunningServicesFn = s.updateRunningServices
+	s.Services[service.Config].(*config.Service).Callback.Rehash = s.Rehash
+	s.Services[service.Config].(*config.Service).Callback.StartStopServices = s.startStopServices
+	s.Services[service.Config].(*config.Service).Callback.Shutdown = s.Shutdown
+	s.Services[service.Config].(*config.Service).Callback.Restart = s.Restart
+	s.status = service.Running
+
+	s.Logs.startup.Logf("startup complete")
 
 	// block until shutdown
 	<-s.Context.Done()
 }
 
-func (s *Server) updateRunningServices() {
-	var (
-		err error
-		id  service.ID
-	)
-
+func (s *Server) startStopServices() {
 	c := s.Services[service.Config].(*config.Service)
-	if c.Values.HTTPD.Enabled {
-		id = service.HTTPD
-		if _, ok := s.Services[id]; !ok {
-			sv := new(httpd.Service)
-			err = sv.Init(&s.Services)
 
-			if err != nil {
-				s.Logs.rehash.LogAlertf("error starting %s [%w]", id, err)
-			} else {
-				go sv.Run()
-				s.Logs.rehash.Logf("started %s successfully", id)
-				s.Services[id] = sv
-			}
-		}
-	} else {
-		id = service.HTTPD
-		if sv, ok := s.Services[id]; ok {
-			s.Logs.rehash.Logf("shutting down %s", id)
-			sv.Shutdown()
-			delete(s.Services, id)
-		}
-	}
-	if c.Values.Poll.Enabled {
-		id = service.Poll
-		if _, ok := s.Services[id]; !ok {
-			sv := new(polling.PollService)
-			err = sv.Init(&s.Services)
-
-			if err != nil {
-				s.Logs.rehash.LogAlertf("error starting %s [%w]", id, err)
-			} else {
-				go sv.Run()
-				s.Logs.rehash.Logf("started %s successfully", id)
-				s.Services[id] = sv
-			}
-		}
-	} else {
-		id = service.Poll
-		if sv, ok := s.Services[id]; ok {
-			s.Logs.rehash.Logf("shutting down %s", id)
-			sv.Shutdown()
-			delete(s.Services, id)
-		}
-	}
+	s.checkStartStopService(c.Values.HTTPD.Enabled, service.HTTPD)
+	s.checkStartStopService(c.Values.Poll.Enabled, service.Poll)
 }
 
 func (s *Server) Rehash() {
-	s.Logs.rehash.Logf("reloading services")
+	p := s.status
+	s.status = service.Rehashing
+	s.Logs.rehash.Logf("rehashing services")
 
 	for _, v := range s.Services {
-		v.Rehash()
+		if sv, ok := v.(service.Rehashable); ok {
+			sv.Rehash()
+		}
 	}
+
+	s.status = p
 }
 
 func (s *Server) Shutdown() {
-	s.IsRunning = false
+	s.status = service.Stopping
+
 	for _, v := range s.Services {
-		v.Shutdown()
+		if sv, ok := v.(service.Runnable); ok {
+			sv.Shutdown()
+		}
 	}
+
+	s.status = service.Stopped
 
 	s.cancel()
 	s.Logs.shutdown.Logf("shutdown complete")
 }
 
-func (s *Server) Get() string {
-	return fmt.Sprintf("%t", s.IsRunning)
+func (s *Server) Restart() {
+	s.Logs.restart.Logf("shutting down services")
+
+	for _, v := range s.Services {
+		if sv, ok := v.(service.Runnable); ok {
+			sv.Shutdown()
+		}
+	}
+
+	s.Logs.restart.Logf("services down")
+	s.Logs.restart.Logf("starting services")
+
+	for _, v := range s.Services {
+		if sv, ok := v.(service.Runnable); ok {
+			go sv.Run()
+		}
+	}
+
+	s.Logs.restart.Logf("services started")
+}
+
+func (s *Server) Status() service.LifeCycle {
+	return s.status
+}
+
+// checkStartStopService performs the following:
+// 1. checks to see if a particular service is running (and in our services list)
+// 2. if it is running, and it shouldn't be, stop it
+// 3. if it isn't running, and it should be running, start it
+func (s *Server) checkStartStopService(isEnabled bool, id service.ID) {
+	s1, found := s.Services[id]
+	if isEnabled && !found {
+		sv := new(polling.Service)
+
+		err := sv.Init(&s.Services)
+		if err != nil {
+			s.Logs.rehash.LogAlertf("error starting %s [%w]", id, err)
+			return
+		}
+
+		go sv.Run()
+
+		s.Logs.rehash.Logf("started %s successfully", id)
+		s.Services[id] = sv
+	} else if !isEnabled && found {
+		if s2, ok2 := s1.(service.Runnable); ok2 {
+			s.Logs.rehash.Logf("shutting down %s", id)
+			s2.Shutdown()
+			delete(s.Services, id)
+		}
+	}
 }

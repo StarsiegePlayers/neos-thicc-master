@@ -11,6 +11,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/log"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/stats"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 
 	"github.com/StarsiegePlayers/darkstar-query-go/v2"
@@ -28,34 +29,31 @@ type Service struct {
 	IPServiceCount map[string]uint16
 	ServerList     map[string]*ServerInfo
 
-	Services        *map[service.ID]service.Interface
-	Config          *config.Service
-	TemplateService service.Interface
-	STUNService     service.Interface
+	pconn  net.PacketConn
+	status service.LifeCycle
 
-	pconn net.PacketConn
+	services struct {
+		Map      *map[service.ID]service.Interface
+		Config   *config.Service
+		Stats    *stats.Service
+		Template service.Getable
+		STUN     service.Getable
+	}
 
-	DailyStats DailyStats
-
-	Logs struct {
+	logs struct {
 		Master       *log.Log
 		Heartbeat    *log.Log
 		Registration *log.Log
 		Banned       *log.Log
 	}
 
-	Masters struct {
+	masters struct {
 		Main   *protocol.Master
 		Banned *protocol.Master
 	}
 
 	service.Interface
 	service.Maintainable
-	service.DailyMaintainable
-}
-
-type DailyStats struct {
-	UniqueUsers map[string]bool
 }
 
 type ServerInfo struct {
@@ -66,35 +64,24 @@ type ServerInfo struct {
 }
 
 func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
-	s.Masters.Main = protocol.NewMaster()
-	s.Masters.Banned = protocol.NewMaster()
+	s.status = service.Stopped
+	s.masters.Main = protocol.NewMaster()
+	s.masters.Banned = protocol.NewMaster()
 	s.Options = &protocol.Options{}
 	s.ServerList = make(map[string]*ServerInfo)
 
 	s.IPServiceCount = make(map[string]uint16)
-	s.DailyStats = DailyStats{
-		UniqueUsers: make(map[string]bool),
-	}
 
-	s.Services = services
-	s.Config = (*s.Services)[service.Config].(*config.Service)
-	s.TemplateService = (*s.Services)[service.Template]
-	s.STUNService = (*s.Services)[service.STUN]
+	s.services.Map = services
+	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
+	s.services.Template = (*s.services.Map)[service.Template].(service.Getable)
+	s.services.STUN = (*s.services.Map)[service.STUN].(service.Getable)
 
-	s.Logs.Master = (*s.Services)[service.Log].(*log.Service).NewLogger(service.Master)
-	s.Logs.Heartbeat = (*s.Services)[service.Log].(*log.Service).NewLogger(service.HeartbeatLog)
-	s.Logs.Registration = (*s.Services)[service.Log].(*log.Service).NewLogger(service.ServerRegistrationLog)
-	s.Logs.Banned = (*s.Services)[service.Log].(*log.Service).NewLogger(service.BannedTrafficLog)
+	s.logs.Master = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Master)
+	s.logs.Heartbeat = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HeartbeatLog)
+	s.logs.Registration = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.ServerRegistrationLog)
+	s.logs.Banned = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.BannedTrafficLog)
 
-	addrPort := fmt.Sprintf("%s:%d", s.Config.Values.Service.Listen.IP, s.Config.Values.Service.Listen.Port)
-
-	s.pconn, err = net.ListenPacket("udp", addrPort)
-	if err != nil {
-		s.Logs.Master.LogAlertf("unable to bind to %s - [%w]", addrPort, err)
-		return
-	}
-
-	s.Logs.Master.Logf("now listening on [%s]", fmt.Sprintf("%s:%d", s.STUNService.Get(), s.Config.Values.Service.Listen.Port))
 	s.Rehash()
 
 	return
@@ -102,18 +89,26 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 
 func (s *Service) Run() {
 	// start listening loop
-	buf := make([]byte, s.Config.Values.Advanced.Network.MaxPacketSize)
-	buf2 := make([]byte, s.Config.Values.Advanced.Network.MaxPacketSize)
+	buf := make([]byte, s.services.Config.Values.Advanced.Network.MaxPacketSize)
+	buf2 := make([]byte, s.services.Config.Values.Advanced.Network.MaxPacketSize)
 	prevIPPort := ""
+	s.status = service.Running
+	addrPort := fmt.Sprintf("%s:%d", s.services.Config.Values.Service.Listen.IP, s.services.Config.Values.Service.Listen.Port)
+
+	err := s.openPort(addrPort)
+	if err != nil {
+		s.logs.Master.LogAlertf("unable to bind to %s - [%w]", addrPort, err)
+		return
+	}
 
 	for {
 		n, addr, err := s.pconn.ReadFrom(buf)
 		if err != nil {
 			var e *net.OpError
 			if errors.As(err, &e) && e.Op == "read" {
-				s.Logs.Master.LogAlertf("socket closed.")
+				s.logs.Master.LogAlertf("socket closed.")
 			} else {
-				s.Logs.Master.LogAlertf("read error on socket [%w]", err)
+				s.logs.Master.LogAlertf("read error on socket [%w]", err)
 			}
 
 			break
@@ -132,7 +127,8 @@ func (s *Service) Run() {
 		go s.serveMaster(&addr, buf[:n])
 	}
 
-	s.Logs.Master.LogAlertf("service stopped")
+	s.status = service.Stopped
+	s.logs.Master.LogAlertf("service %s", s.status)
 }
 
 func (s *Service) Maintenance() {
@@ -153,39 +149,47 @@ func (s *Service) Maintenance() {
 		}
 	}
 
-	s.Logs.Master.Logf("{%s} removed %d stale servers, queried %d servers, %d servers still fresh\n", service.Maintenance, count, checked, fresh)
-}
-
-func (s *Service) DailyMaintenance() {
-	s.Lock()
-	s.Logs.Master.Logf("{%s} resetting daily user count, previous count: %d users", service.DailyMaintenance, len(s.DailyStats.UniqueUsers))
-	s.DailyStats.UniqueUsers = make(map[string]bool)
-	s.Unlock()
+	s.logs.Master.Logf("{%s} removed %d stale servers, queried %d servers, %d servers still fresh\n", service.Maintenance, count, checked, fresh)
 }
 
 func (s *Service) Rehash() {
-	s.Logs.Master.Logf("{%s} Reading config", service.Rehash)
+	p := s.status
+	s.status = service.Rehashing
 
-	s.Masters.Main.MOTD = s.TemplateService.Get()
-	s.Masters.Main.MasterID = s.Config.Values.Service.ID
-	s.Masters.Main.CommonName = s.Config.Values.Service.Hostname
-	s.Masters.Main.MOTDJunk = dummythicc
+	s.Lock()
+	s.logs.Master.Logf("{%s} Reading config", service.Rehash)
 
-	s.Masters.Banned.MOTD = s.Config.Values.Service.Banned.Message
-	s.Masters.Banned.MasterID = s.Config.Values.Service.ID
-	s.Masters.Banned.CommonName = s.Config.Values.Service.Hostname
-	s.Masters.Banned.MOTDJunk = dummythicc
+	s.masters.Main.MOTD = s.services.Template.Get("")
+	s.masters.Main.MasterID = s.services.Config.Values.Service.ID
+	s.masters.Main.CommonName = s.services.Config.Values.Service.Hostname
+	s.masters.Main.MOTDJunk = dummythicc
 
-	s.Options.Debug = s.Config.Values.Advanced.Verbose
-	s.Options.MaxServerPacketSize = s.Config.Values.Advanced.Network.MaxPacketSize
-	s.Options.MaxNetworkPacketSize = s.Config.Values.Advanced.Network.MaxBufferSize
-	s.Options.Timeout = s.Config.Values.Advanced.Network.ConnectionTimeout.Duration
+	s.masters.Banned.MOTD = s.services.Config.Values.Service.Banned.Message
+	s.masters.Banned.MasterID = s.services.Config.Values.Service.ID
+	s.masters.Banned.CommonName = s.services.Config.Values.Service.Hostname
+	s.masters.Banned.MOTDJunk = dummythicc
+
+	s.Options.Debug = s.services.Config.Values.Advanced.Verbose
+	s.Options.MaxServerPacketSize = s.services.Config.Values.Advanced.Network.MaxPacketSize
+	s.Options.MaxNetworkPacketSize = s.services.Config.Values.Advanced.Network.MaxBufferSize
+	s.Options.Timeout = s.services.Config.Values.Advanced.Network.ConnectionTimeout.Duration
+	s.Unlock()
+
+	s.status = p
 }
 
 func (s *Service) Shutdown() {
+	s.status = service.Stopping
+
 	if err := s.pconn.Close(); err != nil {
-		s.Logs.Master.LogAlertf("{%s} error while closing socket [%w]", service.Shutdown, err)
+		s.logs.Master.LogAlertf("{%s} error while closing socket [%s]", service.Shutdown, err)
 	}
+
+	s.status = service.Stopped
+}
+
+func (s *Service) Status() service.LifeCycle {
+	return s.status
 }
 
 func (s *Service) CheckRemoveServer(ipPort string) (removed bool, queried bool) {
@@ -194,7 +198,7 @@ func (s *Service) CheckRemoveServer(ipPort string) (removed bool, queried bool) 
 	svr := s.ServerList[ipPort]
 	addr := svr.Server.Address.(*net.UDPAddr)
 
-	if svr.IsExpired(s.Config.Values.Service.ServerTTL.Duration) {
+	if svr.IsExpired(s.services.Config.Values.Service.ServerTTL.Duration) {
 		err := svr.Query()
 		queried = true
 
@@ -206,9 +210,9 @@ func (s *Service) CheckRemoveServer(ipPort string) (removed bool, queried bool) 
 				delete(s.IPServiceCount, addr.String())
 			}
 
-			s.Logs.Master.Logf("removing server %s, last seen: %s, new count for ip: %d", ipPort, svr.LastSeen.Format(time.Stamp), s.IPServiceCount[addr.String()])
+			s.logs.Master.Logf("removing server %s, last seen: %s, new count for ip: %d", ipPort, svr.LastSeen.Format(time.Stamp), s.IPServiceCount[addr.String()])
 			delete(s.ServerList, ipPort)
-			delete(s.Masters.Main.Servers, ipPort)
+			delete(s.masters.Main.Servers, ipPort)
 			s.Unlock()
 
 			removed = true
@@ -224,7 +228,7 @@ func (s *Service) CheckRemoveServer(ipPort string) (removed bool, queried bool) 
 }
 
 func (s *Service) RegisterExternalServerList(servers map[string]*server.Server) (errs []error) {
-	s.Logs.Master.Logf("registering %d servers from external list", len(servers))
+	s.logs.Master.Logf("registering %d servers from external list", len(servers))
 
 	for k := range servers {
 		// only add servers we don't already know about
@@ -251,13 +255,24 @@ func (s *Service) RegisterExternalServer(ipPort string) error {
 	return nil
 }
 
+func (s *Service) openPort(addrPort string) (err error) {
+	s.pconn, err = net.ListenPacket("udp", addrPort)
+	if err != nil {
+		return
+	}
+
+	s.logs.Master.Logf("now listening on [%s]", fmt.Sprintf("%s:%d", s.services.STUN.Get(""), s.services.Config.Values.Service.Listen.Port))
+
+	return
+}
+
 func (s *Service) serveMaster(addr *net.Addr, buf []byte) {
 	ipNet := (*addr).(*net.UDPAddr)
 
 	// we use an ip-port combo as a unique identifier
 	host, port, err := net.SplitHostPort((*addr).String())
 	if err != nil {
-		s.Logs.Master.LogAlertf("Error parsing IP")
+		s.logs.Master.LogAlertf("Error parsing IP")
 	}
 
 	ipPort := fmt.Sprintf("%s:%s", host, port)
@@ -269,11 +284,11 @@ func (s *Service) serveMaster(addr *net.Addr, buf []byte) {
 	if err != nil {
 		switch {
 		case errors.Is(err, protocol.ErrorUnknownPacketVersion):
-			s.Logs.Master.ServerAlertf(ipPort, "Unknown protocol number")
+			s.logs.Master.ServerAlertf(ipPort, "Unknown protocol number")
 		case errors.Is(err, protocol.ErrorEmptyPacket):
-			s.Logs.Master.ServerAlertf(ipPort, "Empty packet received")
+			s.logs.Master.ServerAlertf(ipPort, "Empty packet received")
 		default:
-			s.Logs.Master.ServerAlertf(ipPort, "Error while parsing packet [%w]", err)
+			s.logs.Master.ServerAlertf(ipPort, "Error while parsing packet [%w]", err)
 		}
 
 		return
@@ -281,9 +296,9 @@ func (s *Service) serveMaster(addr *net.Addr, buf []byte) {
 
 	isBanned := false
 
-	for _, v := range s.Config.ParsedBannedNets {
+	for _, v := range s.services.Config.ParsedBannedNets {
 		if v.Contains(ipNet.IP) {
-			s.Logs.Banned.ServerAlertf(ipNet.IP.String(), "Received a %s packet from banned host", p.Type.String())
+			s.logs.Banned.ServerAlertf(ipNet.IP.String(), "Received a %s packet from banned host", p.Type.String())
 
 			if p.Type != protocol.PingInfoQuery {
 				return
@@ -307,13 +322,10 @@ func (s *Service) serveMaster(addr *net.Addr, buf []byte) {
 			return
 		}
 
-		s.Lock()
-		s.DailyStats.UniqueUsers[ipPort] = true
-		s.Unlock()
 		s.sendList(addr, ipPort, p)
 
 	default:
-		s.Logs.Master.ServerAlertf(ipPort, "Received unsolicited packet type %s", p.Type.String())
+		s.logs.Master.ServerAlertf(ipPort, "Received unsolicited packet type %s", p.Type.String())
 	}
 }
 
@@ -325,7 +337,7 @@ func (s *Service) registerHeartbeat(addr *net.Addr, ipPort string) {
 	response, err := q.Servers()
 
 	if len(err) > 0 || len(response) == 0 {
-		s.Logs.Heartbeat.ServerAlertf(ipPort, "error during server verification [%s, %d]", err, len(response))
+		s.logs.Heartbeat.ServerAlertf(ipPort, "error during server verification [%s, %d]", err, len(response))
 		s.Unlock()
 
 		return
@@ -352,69 +364,70 @@ func (s *Service) registerPingInfo(addr *net.Addr, ipPort string) {
 	s.Lock()
 	ipNet := (*addr).(*net.UDPAddr)
 
-	if _, ok := s.Masters.Main.Servers[ipPort]; !ok {
+	if _, ok := s.masters.Main.Servers[ipPort]; !ok {
 		count := s.IPServiceCount[ipNet.IP.String()]
-		if count+1 > s.Config.Values.Service.ServersPerIP {
-			s.Logs.Registration.ServerAlertf(ipPort, "Rejecting additional server for IP - count: %d/%d", count, s.Config.Values.Service.ServersPerIP)
+		if count+1 > s.services.Config.Values.Service.ServersPerIP {
+			s.logs.Registration.ServerAlertf(ipPort, "Rejecting additional server for IP - count: %d/%d", count, s.services.Config.Values.Service.ServersPerIP)
 			s.Unlock()
 
 			return
 		}
 
 		// log and add new
-		s.Masters.Main.Servers[ipPort] = &server.Server{
+		s.masters.Main.Servers[ipPort] = &server.Server{
 			Address:    *addr,
 			Connection: &s.pconn,
 			LastSeen:   time.Now(),
 		}
 
 		count++
-		s.Logs.Registration.ServerLogf(ipPort, "New Server for IP - total server count for IP: %d/%d", count, s.Config.Values.Service.ServersPerIP)
+		s.logs.Registration.ServerLogf(ipPort, "New Server for IP - total server count for IP: %d/%d", count, s.services.Config.Values.Service.ServersPerIP)
 		s.IPServiceCount[ipNet.IP.String()] = count
 	}
 
-	LastSeen := s.Masters.Main.Servers[ipPort].LastSeen
-	s.Masters.Main.Servers[ipPort].LastSeen = time.Now()
+	LastSeen := s.masters.Main.Servers[ipPort].LastSeen
+	s.masters.Main.Servers[ipPort].LastSeen = time.Now()
 
-	s.Logs.Heartbeat.ServerLogf(ipPort, "Heartbeat - delta: %s", time.Since(LastSeen).String())
+	s.logs.Heartbeat.ServerLogf(ipPort, "Heartbeat - delta: %s", time.Since(LastSeen).String())
 	s.Unlock()
 }
 
 func (s *Service) sendList(addr *net.Addr, ipPort string, p *protocol.Packet) {
 	var laddr net.Addr
 
-	for _, v := range s.STUNService.(*stun.Service).LocalAddresses {
+	for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
 		if v.Contains((*addr).(*net.UDPAddr).IP) {
 			laddr = net.Addr(v)
 			break
 		}
 	}
 
-	s.Masters.Main.MOTD = s.TemplateService.Get()
-	output := s.Masters.Main.GeneratePackets(s.Options, p.Key, &laddr)
+	host, _, _ := net.SplitHostPort(ipPort)
+	s.masters.Main.MOTD = s.services.Template.Get(host)
+	output := s.masters.Main.GeneratePackets(s.Options, p.Key, &laddr)
 
 	for _, v := range output {
 		_, err := s.pconn.WriteTo(v, *addr)
 		if err != nil {
-			s.Logs.Master.ServerAlertf(ipPort, "error sending master list [%s]", err)
+			s.logs.Master.ServerAlertf(ipPort, "error sending master list [%s]", err)
 			return
 		}
 	}
 
-	s.Logs.Master.ServerLogf(ipPort, "servers list sent")
+	s.logs.Master.ServerLogf(ipPort, "servers list sent")
 }
 
 func (s *Service) sendBanned(addr *net.Addr, ipPort string, p *protocol.Packet) {
-	m := s.Masters.Banned
+	m := s.masters.Banned
 	output := m.GeneratePackets(s.Options, p.Key, nil)
 
 	for _, v := range output {
 		_, err := s.pconn.WriteTo(v, *addr)
 		if err != nil {
-			s.Logs.Banned.ServerAlertf(ipPort, "error sending master list [%s]", err)
+			s.logs.Banned.ServerAlertf(ipPort, "error sending master list [%s]", err)
 			return
 		}
 	}
 
-	s.Logs.Banned.ServerLogf(ipPort, "banned message sent")
+	s.logs.Banned.ServerLogf(ipPort, "banned message sent")
 }

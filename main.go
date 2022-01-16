@@ -87,7 +87,7 @@ func showHeader(mainLog *log.Log) {
 }
 
 func signalHandler(c chan os.Signal, server *src.Server, mainLog *log.Log) {
-	for server.IsRunning {
+	for {
 		sig := <-c
 		mainLog.Logf("received [%s]", sig.String())
 
@@ -98,6 +98,7 @@ func signalHandler(c chan os.Signal, server *src.Server, mainLog *log.Log) {
 		case syscall.SIGTERM:
 			mainLog.Logf("shutdown initiated...")
 			server.Shutdown()
+			break
 
 		case syscall.SIGHUP:
 			server.Rehash()
