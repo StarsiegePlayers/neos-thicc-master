@@ -24,7 +24,7 @@ func (s *Service) middlewareThrottle(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		throttle := s.cache[cacheThrottle].(map[string]int)
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
-		if throttle[host] > s.Config.Values.HTTPD.MaxRequestsPerMinute {
+		if throttle[host] > s.services.Config.Values.HTTPD.MaxRequestsPerMinute {
 			s.router.jsonOut(w, HTTPError{
 				Error:     "enhance your calm",
 				ErrorCode: HTTPStatusEnhanceYourCalm,

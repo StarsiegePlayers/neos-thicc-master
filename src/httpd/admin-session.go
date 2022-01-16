@@ -49,7 +49,7 @@ func (s *Service) adminLoginTokenVerify(r *http.Request) (*jwt.Token, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(s.Config.Values.HTTPD.Secrets.Authentication), nil
+		return []byte(s.services.Config.Values.HTTPD.Secrets.Authentication), nil
 	})
 
 	if err != nil {
@@ -110,7 +110,7 @@ func (s *Service) adminCreateToken() (*HTTPAdminTokenData, error) {
 	accessClaims["session"] = td.Access.SessionID
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 
-	td.Access.Token, err = accessToken.SignedString([]byte(s.Config.Values.HTTPD.Secrets.Authentication))
+	td.Access.Token, err = accessToken.SignedString([]byte(s.services.Config.Values.HTTPD.Secrets.Authentication))
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (s *Service) adminCreateToken() (*HTTPAdminTokenData, error) {
 	refreshClaims["session"] = td.Refresh.SessionID
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 
-	td.Refresh.Token, err = refreshToken.SignedString([]byte(s.Config.Values.HTTPD.Secrets.Refresh))
+	td.Refresh.Token, err = refreshToken.SignedString([]byte(s.services.Config.Values.HTTPD.Secrets.Refresh))
 	if err != nil {
 		return nil, err
 	}

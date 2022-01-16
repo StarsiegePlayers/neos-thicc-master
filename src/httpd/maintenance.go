@@ -24,36 +24,36 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 	errors := make([]string, 0)
 	masters := make([]*MasterQuery, 0)
 
-	// MasterService should never be nil, but just in case
-	if s.MasterService != nil {
-		s.MasterService.Lock()
+	// Master should never be nil, but just in case
+	if s.services.Master != nil {
+		s.services.Master.Lock()
 
-		for _, v := range s.MasterService.ServerList {
+		for _, v := range s.services.Master.ServerList {
 			rawGames = append(rawGames, v.PingInfoQuery)
 		}
 
-		s.MasterService.Unlock()
+		s.services.Master.Unlock()
 	}
 
 	// skip if poll service isn't running
-	if s.PollService != nil {
-		s.PollService.Lock()
-		for _, v := range s.PollService.PollMasterInfo.Errors {
+	if s.services.Poll != nil {
+		s.services.Poll.Lock()
+		for _, v := range s.services.Poll.PollMasterInfo.Errors {
 			errors = append(errors, v.Error())
 		}
 
-		for _, v := range s.PollService.PollMasterInfo.Masters {
+		for _, v := range s.services.Poll.PollMasterInfo.Masters {
 			masters = append(masters, &MasterQuery{
 				MasterQuery: v,
 				ServerCount: len(v.Servers),
 			})
 		}
-		s.PollService.Unlock()
+		s.services.Poll.Unlock()
 	}
 
 	// skip if STUN service isn't running
-	if s.STUNService != nil {
-		for _, v := range s.STUNService.(*stun.Service).LocalAddresses {
+	if s.services.STUN != nil {
+		for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
 			localizedGames = make([]*query.PingInfoQuery, 0)
 
 			for _, game := range rawGames {
@@ -95,7 +95,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 			addressString, portString, _ := net.SplitHostPort(game.Address)
 
 			if addressString == service.LocalhostAddress {
-				game.Address = s.STUNService.Get() + ":" + portString
+				game.Address = s.services.STUN.Get("") + ":" + portString
 			}
 
 			localizedGames = append(localizedGames, game)
@@ -115,7 +115,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 
 	jsonOut, err := json.Marshal(data)
 	if err != nil {
-		s.Logs.HTTPD.LogAlertf("error marshalling api server list [%w]", err)
+		s.logs.HTTPD.LogAlertf("error marshalling api server list [%w]", err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 func (s *Service) clearThrottleCache() {
 	cache := s.cache[cacheThrottle].(map[string]int)
 	if len(cache) >= 1 {
-		s.Logs.HTTPD.Logf("[maintenance] resetting throttle cache for %d clients", len(cache))
+		s.logs.HTTPD.Logf("[maintenance] resetting throttle cache for %d clients", len(cache))
 		s.cache[cacheThrottle] = make(map[string]int)
 	}
 }
