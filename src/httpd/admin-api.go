@@ -258,6 +258,16 @@ func (s *Service) routeGetAdminServerSettings(w http.ResponseWriter, _ *http.Req
 	})
 }
 
+func (s *Service) routeGetAdminServiceStatus(w http.ResponseWriter, _ *http.Request) {
+	output := make(map[string]string)
+
+	for k, v := range *s.services.Map {
+		output[k.String()] = v.Status().String()
+	}
+
+	s.router.jsonOut(w, output)
+}
+
 func (s *Service) routePostAdminServerSettings(w http.ResponseWriter, r *http.Request) {
 	decode := json.NewDecoder(r.Body)
 	form := &HTTPAdminSettings{}
@@ -301,27 +311,25 @@ func (s *Service) routePostAdminPowerAction(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	output := HTTPAdminPowerAction{
+		Action: form.Action,
+		HTTPError: HTTPError{
+			Error:     "",
+			ErrorCode: 0,
+		},
+	}
+
 	switch form.Action {
 	case "shutdown":
-		s.router.jsonOut(w, HTTPAdminPowerAction{
-			Action: "shutdown",
-			HTTPError: HTTPError{
-				Error:     "",
-				ErrorCode: http.StatusAccepted,
-			},
-		})
+		s.router.jsonOut(w, output)
 
 		go s.services.Config.Callback.Shutdown()
+
 	case "restart":
-		s.router.jsonOut(w, HTTPAdminPowerAction{
-			Action: "restart",
-			HTTPError: HTTPError{
-				Error:     "",
-				ErrorCode: http.StatusAccepted,
-			},
-		})
+		s.router.jsonOut(w, output)
 
 		go s.services.Config.Callback.Restart()
+
 	default:
 		s.router.jsonOut(w, HTTPError{
 			Error:     "unknown action requested",

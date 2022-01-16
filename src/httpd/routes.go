@@ -23,6 +23,7 @@ func (s *Service) registerRoutes() {
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodGet, s.middlewareAuth(s.routeGetAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodPost, s.middlewareAuth(s.routePostAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/poweraction", http.MethodPost, s.middlewareAuth(s.routePostAdminPowerAction))
+	s.router.AddRoute("/api/v1/admin/services", http.MethodGet, s.middlewareAuth(s.routeGetAdminServiceStatus))
 	s.router.AddRoute("/yeet", http.MethodGet, http.HandlerFunc(s.routeGetYeeted))
 }
 
