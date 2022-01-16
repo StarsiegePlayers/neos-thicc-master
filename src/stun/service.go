@@ -45,6 +45,7 @@ func (s *Service) Rehash() {
 	s.stunServers = s.services.Config.Values.Advanced.Network.StunServers
 	s.LocalAddresses = s.generateUniqueLocalAddresses()
 	s.cachedOutput = ""
+	s.cachedOutput = s.Get("")
 }
 
 func (s *Service) Get(string) string {
