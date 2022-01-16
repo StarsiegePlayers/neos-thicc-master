@@ -85,8 +85,8 @@ func (s *Service) SetDefaults() {
 	s.viper.SetDefault("Service.Hostname", "")
 	s.viper.SetDefault("Service.Templates.MOTD", "")
 	s.viper.SetDefault("Service.Templates.TimeFormat", "Y-m-d H:i:s T")
-	s.viper.SetDefault("Service.ID", 01)           //nolint:gomnd
-	s.viper.SetDefault("Service.ServersPerIP", 15) //nolint:gomnd
+	s.viper.SetDefault("Service.ID", 99)           //nolint:gomnd
+	s.viper.SetDefault("Service.ServersPerIP", 30) //nolint:gomnd
 
 	s.viper.SetDefault("Service.Banned.Message", "You've been banned!")
 	s.viper.SetDefault("Service.Banned.Networks", []string{"224.0.0.0/4"})
@@ -112,6 +112,7 @@ func (s *Service) SetDefaults() {
 func (s *Service) UpdateValues(c *Configuration) error {
 	values := c
 	s.Values = values
+
 	return s.Write()
 }
 
@@ -159,5 +160,6 @@ func (s *Service) Write() (err error) {
 	s.setValues()
 	err = s.viper.WriteConfig()
 	s.Values.Unlock()
+
 	return
 }
