@@ -36,7 +36,7 @@
 </script>
 
 {#if $masterInfo.Hostname !== ""}
-    <div class="d-flex flex-column p-3 mt-5 border border-1 rounded-3 header">
+    <div class="d-flex flex-column p-lg-3 mt-5 border border-1 rounded-3 header bg-primary bg-opacity-50">
         <div class="d-flex flex-row justify-content-center">
             <h4>This Server</h4>
         </div>
@@ -78,7 +78,7 @@
 {/if}
 
 {#if $info.Masters.length > 0}
-    <div class="row justify-content-center table-responsive pt-4">
+    <div class="row table-responsive pt-4">
         <table class="table table-ss-blue table-bordered table-striped table-hover caption-top">
             <caption class="h4">Peer Master Servers</caption>
             <tr class="table-ss-yellow">
@@ -105,7 +105,7 @@
 
 {#if $info.Games.length > 0}
     <hr />
-    <div class="row justify-content-center table-responsive">
+    <div class="row table-responsive">
         <table class="table table-ss-blue table-bordered table-striped table-hover caption-top">
             <caption class="h4">Reporting Game Servers</caption>
             <tr class="table-ss-yellow">
@@ -139,7 +139,7 @@
 {/if}
 {#if $info.Errors.length > 0}
     <hr />
-    <div class="row justify-content-center table-responsive">
+    <div class="row table-responsive">
         <table class="table table-ss-blue table-bordered table-striped table-hover caption-top">
             <caption class="h4">Errors Encountered</caption>
             {#each $info.Errors as error, i}
@@ -154,10 +154,8 @@
 
 <style lang="scss">
     @import "../styles/app/variables";
-
     .header {
-        background-color: $starsiege-table-blue;
-        border-color: $border-color;
+      max-width: 100%;
     }
 
     .row {
