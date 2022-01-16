@@ -12,7 +12,7 @@ type Service struct {
 
 	stats struct {
 		DailyHosts  map[string]int
-		ActiveGames map[string]int
+		ActiveGames map[string]byte
 	}
 	services struct {
 		Map *map[service.ID]service.Interface
@@ -28,7 +28,7 @@ type Service struct {
 func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.services.Map = services
 	s.stats.DailyHosts = make(map[string]int)
-	s.stats.ActiveGames = make(map[string]int)
+	s.stats.ActiveGames = make(map[string]byte)
 	s.logs.Stats = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.BannedTrafficLog)
 
 	return
@@ -71,18 +71,13 @@ func (s *Service) GetTotalServersWithPlayers() int {
 	return len(s.stats.ActiveGames)
 }
 
-func (s *Service) UpdatePlayerCountForServer(ipPort string, count int) {
+func (s *Service) UpdatePlayerCountForServer(ipPort string, count byte) {
 	s.Lock()
-
-	storedCount, ok := s.stats.ActiveGames[ipPort]
-	if ok && count <= 0 {
+	if count <= 0 {
 		delete(s.stats.ActiveGames, ipPort)
-	}
-
-	if storedCount != count {
+	} else {
 		s.stats.ActiveGames[ipPort] = count
 	}
-
 	s.Unlock()
 }
 
