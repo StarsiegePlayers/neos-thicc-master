@@ -46,10 +46,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 // StringToCustomDurationHookFunc returns a DecodeHookFunc that converts
 // strings to Duration.
 func StringToCustomDurationHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data interface{}) (interface{}, error) {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}

@@ -1,8 +1,9 @@
 package config
 
 import (
-	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 	"sync"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
 )
 
 type Configuration struct {

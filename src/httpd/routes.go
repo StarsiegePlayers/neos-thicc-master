@@ -1,11 +1,12 @@
 package httpd
 
 import (
-	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"io/fs"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 )
@@ -13,7 +14,7 @@ import (
 const HTTPStatusEnhanceYourCalm = 420
 
 func (s *Service) registerRoutes() {
-	s.router.SetFileSystem(fs.Sub(s.Config.BuildInfo.EmbedFS, "www-build"))
+	s.router.SetFileSystem(fs.Sub(s.services.Config.BuildInfo.EmbedFS, "www-build"))
 	s.router.AddRoute("/api/v1/master/info", http.MethodGet, http.HandlerFunc(s.routeGetMasterInfo))
 	s.router.AddRoute("/api/v1/multiplayer/servers", http.MethodGet, http.HandlerFunc(s.routeGetMultiplayerServers))
 	s.router.AddRoute("/api/v1/admin/login", http.MethodGet, s.middlewareThrottle(s.routeGetAdminLogin))
@@ -21,6 +22,7 @@ func (s *Service) registerRoutes() {
 	s.router.AddRoute("/api/v1/admin/login", http.MethodDelete, s.middlewareThrottle(s.routeDeleteAdminLogout))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodGet, s.middlewareAuth(s.routeGetAdminServerSettings))
 	s.router.AddRoute("/api/v1/admin/serversettings", http.MethodPost, s.middlewareAuth(s.routePostAdminServerSettings))
+	s.router.AddRoute("/api/v1/admin/poweraction", http.MethodPost, s.middlewareAuth(s.routePostAdminPowerAction))
 	s.router.AddRoute("/yeet", http.MethodGet, http.HandlerFunc(s.routeGetYeeted))
 }
 
@@ -36,9 +38,9 @@ func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Requ
 	remoteIPString, _, err := net.SplitHostPort(r.RemoteAddr)
 
 	// skip if STUN service isn't running
-	if s.STUNService != nil && err == nil {
+	if s.services.STUN != nil && err == nil {
 		remoteIP := net.ParseIP(remoteIPString)
-		for _, v := range s.STUNService.(*stun.Service).LocalAddresses {
+		for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
 			if v.Contains(remoteIP) {
 				if d2, ok := cacheData[v.String()]; ok {
 					data = d2
@@ -55,7 +57,7 @@ func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Service) routeGetMasterInfo(w http.ResponseWriter, _ *http.Request) {
-	hostname := s.Config.Values.Service.Hostname
+	hostname := s.services.Config.Values.Service.Hostname
 	if hostname == "" {
 		hostname = "(no-name)"
 	}
@@ -67,9 +69,9 @@ func (s *Service) routeGetMasterInfo(w http.ResponseWriter, _ *http.Request) {
 		Uptime   time.Time
 	}{
 		Hostname: hostname,
-		MOTD:     s.MasterService.TemplateService.Get(),
-		ID:       s.Config.Values.Service.ID,
-		Uptime:   s.Config.Startup,
+		MOTD:     s.services.Template.Get(""),
+		ID:       s.services.Config.Values.Service.ID,
+		Uptime:   s.services.Config.Startup,
 	})
 }
 
