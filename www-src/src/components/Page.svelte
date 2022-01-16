@@ -20,7 +20,6 @@
 
     <div id="page-content-wrapper">
         <NavbarTop bind:menuActive={menuActive} />
-        <div class="modal"></div>
         <PageContent bind:menuActive={menuActive}><slot/></PageContent>
     </div>
 </div>

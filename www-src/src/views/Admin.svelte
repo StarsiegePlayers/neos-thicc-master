@@ -82,11 +82,20 @@
         "Error": "",
         "ErrorCode": 0,
     })
+    const powerActions = http({
+        "Action": "",
+        "Error": "",
+        "ErrorCode": 0,
+    })
     const form = writable({
         modal: {
             processing: false,
             status: "Processing...",
             scrollPos: 0,
+        },
+        powerActionModal: {
+            show: false,
+            confirm: "",
         },
         advanced: false,
         username: "",
@@ -116,11 +125,26 @@
         submitDisabled = $form.processing = true
         settings.post("/api/v1/admin/serversettings", $settings)
             .then(() => {
-                submitDisabled = $form.processing = false
-                displayResult = true
-                if ($settings.Error !== "" || $settings.ErrorCode !== 0) {
+                if (($settings.Error !== undefined && $settings.Error !== "") || ($settings.ErrorCode !== undefined && $settings.ErrorCode !== 0)) {
                     resultSuccess = false
                 }
+                submitDisabled = $form.processing = false
+                displayResult = true
+                setTimeout(() => { displayResult = false }, 3000)
+            })
+    }
+
+    const adminFormPowerAction = (e) => {
+        scrollPos = 0
+        submitDisabled = $form.powerActionModal.show = true
+        $powerActions.Action = e.submitter.value.toLowerCase()
+    }
+
+    const adminFormPowerActionSubmit = () => {
+        powerActions.post("/api/v1/admin/poweraction", $powerActions)
+            .then(() => {
+                submitDisabled = $form.powerActionModal.show = false
+                displayResult = true
                 setTimeout(() => { displayResult = false }, 3000)
             })
     }
@@ -128,11 +152,32 @@
 
 <svelte:window bind:scrollY={scrollPos}/>
 <Modal bind:open={$form.modal.processing}>
-    <div class="modal-header">
+    <div class="modal-header bg-primary">
         <h5 class="modal-title">{$form.modal.status}</h5>
     </div>
-    <div class="modal-body d-flex flex-row justify-content-center">
+    <div class="modal-body d-flex flex-row justify-content-center bg-primary text-center">
         <Rainbow size="60" color="#18303f" />
+    </div>
+</Modal>
+
+<Modal bind:open={$form.powerActionModal.show}>
+    <div class="modal-header bg-primary">
+        <h5 class="modal-title">Are you absolutely sure?</h5>
+    </div>
+    <div class="modal-body d-flex flex-row justify-content-center bg-primary">
+        <form on:submit|preventDefault={adminFormPowerActionSubmit}>
+            <p class="text-danger p-5 bg-warning bg-opacity-25 rounded rounded-3 text-center">
+                You are about to {$powerActions.Action.toUpperCase()} the server {$settings.Service.Hostname.replaceAll("\\n", "")}
+            </p>
+            <p>
+                <label for="admin.poweraction.confirm" class="form-label text-start">Please type {$powerActions.Action.toUpperCase()} to confirm.</label>
+                <input id="admin.poweraction.confirm" class="form-control" placeholder="" bind:value={$form.powerActionModal.confirm} />
+            </p>
+            <div class="d-flex flex-row justify-content-between">
+                <input class="text-danger" type="submit" disabled="{$form.powerActionModal.confirm !== $powerActions.Action.toUpperCase()}" value="{$powerActions.Action.toUpperCase()}" />
+                <input class="btn-secondary" type="button" value="Cancel" on:click|preventDefault={()=>{submitDisabled = $form.powerActionModal.show = false}}>
+            </div>
+        </form>
     </div>
 </Modal>
 
@@ -161,6 +206,10 @@
             <HTTPDSettings settings={settings} form={form} />
             <AdvancedSettings settings={settings} form={form} />
             <input class="btn-lg btn-success" type="submit" value="Save Changes" disabled='{submitDisabled}'>
+        </form>
+        <form on:submit|preventDefault={adminFormPowerAction}>
+            <input class="btn-lg btn-danger" type="submit" value="Shutdown" disabled='{submitDisabled}'>
+            <input class="btn-lg btn-warning" type="submit" value="Restart" disabled='{submitDisabled}'>
         </form>
     </div>
 {/if}
