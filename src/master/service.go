@@ -36,8 +36,8 @@ type Service struct {
 		Map      *map[service.ID]service.Interface
 		Config   *config.Service
 		Stats    *stats.Service
+		STUN     *stun.Service
 		Template service.Getable
-		STUN     service.Getable
 	}
 
 	logs struct {
@@ -75,8 +75,8 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.services.Map = services
 	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
 	s.services.Stats = (*s.services.Map)[service.Stats].(*stats.Service)
+	s.services.STUN = (*s.services.Map)[service.STUN].(*stun.Service)
 	s.services.Template = (*s.services.Map)[service.Template].(service.Getable)
-	s.services.STUN = (*s.services.Map)[service.STUN].(service.Getable)
 
 	s.logs.Master = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.Master)
 	s.logs.Heartbeat = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HeartbeatLog)
@@ -397,9 +397,12 @@ func (s *Service) registerPingInfo(addr *net.Addr, ipPort string) {
 func (s *Service) sendList(addr *net.Addr, ipPort string, p *protocol.Packet) {
 	var laddr net.Addr
 
-	for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
+	for _, v := range s.services.STUN.LocalAddresses {
 		if v.Contains((*addr).(*net.UDPAddr).IP) {
-			laddr = net.Addr(v)
+			laddr = &net.IPAddr{
+				IP:   v.IP,
+				Zone: "",
+			}
 			break
 		}
 	}
