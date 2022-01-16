@@ -11,7 +11,6 @@ require (
 require (
 	github.com/StarsiegePlayers/darkstar-query-go/v2 v2.1.4
 	github.com/aykevl/pwhash v0.0.0-20190314135513-09cf1e69944b
-	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/google/uuid v1.3.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
@@ -22,6 +21,7 @@ require (
 )
 
 require (
+	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
