@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
-	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 )
 
 const HTTPStatusEnhanceYourCalm = 420
@@ -40,14 +39,12 @@ func (s *Service) routeGetMultiplayerServers(w http.ResponseWriter, r *http.Requ
 
 	// skip if STUN service isn't running
 	if s.services.STUN != nil && err == nil {
-		remoteIP := net.ParseIP(remoteIPString)
-		for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
-			if v.Contains(remoteIP) {
-				if d2, ok := cacheData[v.String()]; ok {
-					data = d2
-					break
-				}
+		if ok, ip := s.services.STUN.IsInLocalNets(remoteIPString); ok {
+			if d2, ok2 := cacheData[ip.String()]; ok2 {
+				data = d2
 			}
+		} else {
+
 		}
 	}
 

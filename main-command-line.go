@@ -6,9 +6,10 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 	"github.com/aykevl/pwhash"
 	"golang.org/x/term"
+
+	"github.com/StarsiegePlayers/neos-thicc-master/src/config"
 )
 
 func processCommandLine(c *config.Service) bool {

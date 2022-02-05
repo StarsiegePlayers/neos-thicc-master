@@ -22,7 +22,8 @@ type Service struct {
 		Config *config.Service
 	}
 
-	log *log.Log
+	log    *log.Log
+	status service.LifeCycle
 
 	service.Interface
 	service.Rehashable
@@ -32,20 +33,24 @@ func (s *Service) Init(services *map[service.ID]service.Interface) error {
 	s.log = (*services)[service.Log].(*log.Service).NewLogger(service.STUN)
 	s.services.Map = services
 	s.services.Config = (*services)[service.Config].(*config.Service)
+	s.status = service.Static
 	s.Rehash()
 
 	return nil
 }
 
 func (s *Service) Status() service.LifeCycle {
-	return service.Static
+	return s.status
 }
 
 func (s *Service) Rehash() {
+	p := s.status
+	s.status = service.Rehashing
 	s.stunServers = s.services.Config.Values.Advanced.Network.StunServers
 	s.LocalAddresses = s.generateUniqueLocalAddresses()
 	s.cachedOutput = ""
 	s.cachedOutput = s.Get("")
+	s.status = p
 }
 
 func (s *Service) Get(string) string {
@@ -86,6 +91,15 @@ func (s *Service) Get(string) string {
 	}
 
 	return s.cachedOutput
+}
+
+func (s *Service) IsInLocalNets(host string) (bool, net.IP) {
+	for _, v := range s.LocalAddresses {
+		if v.Contains(net.ParseIP(host)) {
+			return true, v.IP
+		}
+	}
+	return false, nil
 }
 
 func (s *Service) generateUniqueLocalAddresses() (output []*net.IPNet) {

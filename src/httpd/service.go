@@ -13,6 +13,7 @@ import (
 	"github.com/StarsiegePlayers/neos-thicc-master/src/master"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/polling"
 	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
+	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
 )
 
 type Service struct {
@@ -30,7 +31,7 @@ type Service struct {
 		Config   *config.Service
 		Master   *master.Service
 		Poll     *polling.Service
-		STUN     service.Getable
+		STUN     *stun.Service
 		Template service.Getable
 	}
 	logs struct {
@@ -53,7 +54,7 @@ func (s *Service) Init(services *map[service.ID]service.Interface) (err error) {
 	s.services.Config = (*s.services.Map)[service.Config].(*config.Service)
 	s.services.Master = (*s.services.Map)[service.Master].(*master.Service)
 	s.services.Poll, _ = (*s.services.Map)[service.Poll].(*polling.Service)
-	s.services.STUN = (*s.services.Map)[service.STUN].(service.Getable)
+	s.services.STUN = (*s.services.Map)[service.STUN].(*stun.Service)
 	s.services.Template = (*s.services.Map)[service.Template].(service.Getable)
 	s.logs.HTTPD = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)
 	s.logs.Router = (*s.services.Map)[service.Log].(*log.Service).NewLogger(service.HTTPDRouter)

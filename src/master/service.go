@@ -174,6 +174,7 @@ func (s *Service) Rehash() {
 	s.Options.MaxServerPacketSize = s.services.Config.Values.Advanced.Network.MaxPacketSize
 	s.Options.MaxNetworkPacketSize = s.services.Config.Values.Advanced.Network.MaxBufferSize
 	s.Options.Timeout = s.services.Config.Values.Advanced.Network.ConnectionTimeout.Duration
+	s.Options.LocalNetworks = s.services.STUN.LocalAddresses
 	s.Unlock()
 
 	s.status = p
@@ -403,13 +404,14 @@ func (s *Service) sendList(addr *net.Addr, ipPort string, p *protocol.Packet) {
 				IP:   v.IP,
 				Zone: "",
 			}
+
 			break
 		}
 	}
 
 	host, _, _ := net.SplitHostPort(ipPort)
 	s.masters.Main.MOTD = s.services.Template.Get(host)
-	output := s.masters.Main.GeneratePackets(s.Options, p.Key, &laddr)
+	output := s.masters.Main.GeneratePackets(s.Options, p.Key, laddr, *addr)
 
 	for _, v := range output {
 		_, err := s.pconn.WriteTo(v, *addr)
@@ -424,7 +426,7 @@ func (s *Service) sendList(addr *net.Addr, ipPort string, p *protocol.Packet) {
 
 func (s *Service) sendBanned(addr *net.Addr, ipPort string, p *protocol.Packet) {
 	m := s.masters.Banned
-	output := m.GeneratePackets(s.Options, p.Key, nil)
+	output := m.GeneratePackets(s.Options, p.Key, nil, nil)
 
 	for _, v := range output {
 		_, err := s.pconn.WriteTo(v, *addr)

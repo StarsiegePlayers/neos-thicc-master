@@ -6,9 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/StarsiegePlayers/neos-thicc-master/src/service"
-	"github.com/StarsiegePlayers/neos-thicc-master/src/stun"
-
 	"github.com/StarsiegePlayers/darkstar-query-go/v2/query"
 )
 
@@ -53,7 +50,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 
 	// skip if STUN service isn't running
 	if s.services.STUN != nil {
-		for _, v := range s.services.STUN.(*stun.Service).LocalAddresses {
+		for _, v := range s.services.STUN.LocalAddresses {
 			localizedGames = make([]*query.PingInfoQuery, 0)
 
 			for _, game := range rawGames {
@@ -94,7 +91,7 @@ func (s *Service) maintenanceMultiplayerServersCache() (cacheData *CacheResponse
 		for _, game := range rawGames {
 			addressString, portString, _ := net.SplitHostPort(game.Address)
 
-			if addressString == service.LocalhostAddress {
+			if ok, _ := s.services.STUN.IsInLocalNets(addressString); ok {
 				game.Address = s.services.STUN.Get("") + ":" + portString
 			}
 
